@@ -1,0 +1,43 @@
+▶ Documentation for substitution-font-template.conf
+
+This advanced template adds one substitution rule to the basic template. Thus,
+it includes three rules:
+— the first one tells fontconfig it can use the font named [fontname] when an
+application asks for the generic family [genericname].
+— the second one tells fontconfig it can complete the font named [fontname]
+with glyphs taken from fonts registered under [genericname].
+— the third one tells fontconfig it can use [fontname] instead of
+[otherfontname] if an application asks for [otherfontname].
+
+The typical use-case is when you package [fontname], which is a derivative of
+[otherfontname], and want the system to propose [fontname] if [otherfontname]
+is not available.
+
+If you have different needs, take a look at the other templates.
+
+Please replace [fontname], [genericname], and [otherfontname] with the
+appropriate values in the following blocks of instructions.
+
+A [fontname] or [otherfontname] example would be:
+DejaVu Sans
+It's the name under which the font appears in GUI font drop-downs.
+
+Fontconfig generics ([genericname]) currently include:
+— sans-serif
+— serif
+— monospace
+— fantasy
+– cursive
+
+Processing the resulting file through xmllint with the "format" flag is usually
+a good idea.
+$ xmllint --format -o [XX]-[fontname].conf [yourfile]
+The output file will be named:
+[XX]-[fontname].conf
+where [XX] should be a two-digit number corresponding to the font priority in
+fontconfig.
+
+For more information, see:
+http://fedoraproject.org/wiki/Fontconfig_packaging_tips
+
+© 2008 Nicolas Mailhot <nim at fedoraproject dot org>

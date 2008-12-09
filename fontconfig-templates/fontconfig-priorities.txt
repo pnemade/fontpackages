@@ -1,0 +1,17 @@
+Fontconfig configuration file ordering
+
+┌────────┬────────────────────────────────────────────────────────────────────┐
+│ Prefix │ Description                                                        │
+├────────┼────────────────────────────────────────────────────────────────────┤
+│ 50 	 │ User override                                                      │
+│ 51 	 │ Local system overrides                                             │
+│ 55-59  │ High priority LGC (Latin Greek Cyrillic) fonts                     │
+│        │ (distribution general-purpose default fonts)                       │
+│ 60     │ Main LGC font list                                                 │
+│ 61-64  │ Low priority LGC fonts                                             │
+│ 65-69  │ Fonts with less common encodings, ending with fonts that provide   │
+│        │ coverage of exotic unicode blocks at the expense of drawing        │
+│        │ quality                                                            │
+└────────┴────────────────────────────────────────────────────────────────────┘
+
+© 2007-2008 Nicolas Mailhot <nim at fedoraproject dot org>

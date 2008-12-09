@@ -1,0 +1,16 @@
+1.10 - renamed to “fontpackages”
+1.9 - fix fontconfig documentation discrepancy noticed by Ankur Sinha, add doc
+on fontconfig priorities
+1.8 - simplify multi spec template: general case, 1 common license, 1 common
+prio
+1.7 - split fontconfig template documentation is separate files, to simplify
+diff-ing against templates.
+1.6 - simplify spec templates
+1.5 - use ".conf" extension for fontconfig templates
+1.4 - fontpackages-filesystem must be required by the common package in the
+multi spec template
+1.3 - remove trailing / from directory macro definitions. It's not what people
+expect.
+1.2 - add directory ownership in simple spec template
+1.1 - add fontconfig templates
+1.0 - initial release
