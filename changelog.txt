@@ -1,3 +1,4 @@
+1.11 - fix hosting info in readme
 1.10 - renamed to “fontpackages”
 1.9 - fix fontconfig documentation discrepancy noticed by Ankur Sinha, add doc
 on fontconfig priorities
