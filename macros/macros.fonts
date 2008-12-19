@@ -10,8 +10,13 @@
 # Actual font installation directory
 %_fontdir %{_fontbasedir}/%{?fontname:%{fontname}}%{?!fontname:%{name}}
 
-# Main fontconfig configuration directory
-%_fontconfig_confdir     %{_sysconfdir}/fonts/conf.d
+# Master fontconfig configuration directory
+# Only needed to avoid a circular directory dependency with the fontconfig
+# package — you should *not* use this
+%_fontconfig_masterdir   %{_sysconfdir}/fonts
+
+# Fontconfig directory for active configuration snippets
+%_fontconfig_confdir     %{_fontconfig_masterdir}/conf.d
 
 # Fontconfig configuration template directory
 # Templates are activated by symlinking in _fontconfig_confdir
