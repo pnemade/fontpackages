@@ -19,20 +19,20 @@
 <FONT COLLECTION DESCRIPTION>
 
 
-Name:    %{fontname}-fonts
+Name:           %{fontname}-fonts
 # Do not trust font metadata versionning unless you've checked upstream does
 # update versions on file changes. When in doubt use the timestamp of the most
 # recent file as version.
-Version: 
-Release: 1%{?dist}
-Summary: 
+Version:        
+Release:        1%{?dist}
+Summary:        
 
-Group:     User Interface/X
-License:   
-URL:       
-Source0:   
-Source1:   %{name}-fontconfig.conf
-BuildRoot: %(mktemp -ud %{_tmppath}/%{name}-%{version}-%{release}-XXXXXX)
+Group:          User Interface/X
+License:        
+URL:            
+Source0:        
+Source1:        %{name}-fontconfig.conf
+BuildRoot:      %(mktemp -ud %{_tmppath}/%{name}-%{version}-%{release}-XXXXXX)
 
 BuildArch:     noarch
 BuildRequires: fontpackages-devel
@@ -42,7 +42,7 @@ BuildRequires: fontpackages-devel
 
 
 %package common
-Summary:  <NAME>, common files (documentation…)
+Summary:  Common files for <NAME> (documentation…)
 Group:    User Interface/X
 Requires: fontpackages-filesystem
 
