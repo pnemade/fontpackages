@@ -16,7 +16,7 @@
 %_fontconfig_masterdir   %{_sysconfdir}/fonts
 
 # Fontconfig directory for active configuration snippets
-%_fontconfig_confdir     %{_fontconfig_masterdir}/conf.d
+%_fontconfig_confdir     %{_sysconfdir}/fonts/conf.d
 
 # Fontconfig configuration template directory
 # Templates are activated by symlinking in _fontconfig_confdir
