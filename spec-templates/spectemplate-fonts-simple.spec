@@ -2,7 +2,7 @@
 # (one font family in one upstream archive):
 # — if you're unlucky enough upstream released several font families in a
 #   single archive, use spectemplate-fonts-multi.spec
-# – if upstream releases separate fonts in separate achives, do not try to
+# – if upstream releases separate fonts in separate archives, do not try to
 #   stuff them in a single spec/package, just package them separately
 #
 # Please remove the template comments when creating your own file;
