@@ -6,6 +6,10 @@ http://fedoraproject.org/wiki/Category:Fonts_SIG
 
 However, it should not depend on any distribution-specific magic.
 
-It is published at:
-http://fedorahosted.org/releases/f/o/fontpackages
-git://git.fedorahosted.org/fontpackages.git
+The home page of the project is:
+http://fedoraproject.org/wiki/fontpackages
+
+And its content is published here:
+— http://fedorahosted.org/releases/f/o/fontpackages (release archives)
+— git://git.fedorahosted.org/fontpackages.git (content vcs)
+— http://cvs.fedoraproject.org/viewvc/rpms/fontpackages/ (package vcs)
