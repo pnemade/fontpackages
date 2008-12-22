@@ -53,7 +53,7 @@ This package consists of files used by other %{name} packages.
 
 # Repeat for every font family
 %package        <FAMILY>
-Summary:         
+Summary:        
 Group:          User Interface/X
 Requires:       %{name}-common = %{version}-%{release}
 
