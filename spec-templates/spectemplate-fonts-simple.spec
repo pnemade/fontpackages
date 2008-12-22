@@ -28,9 +28,9 @@ Source0:
 Source1:        %{name}-fontconfig.conf
 BuildRoot:      %(mktemp -ud %{_tmppath}/%{name}-%{version}-%{release}-XXXXXX)
 
-BuildArch:     noarch
-BuildRequires: fontpackages-devel
-Requires:      fontpackages-filesystem
+BuildArch:      noarch
+BuildRequires:  fontpackages-devel
+Requires:       fontpackages-filesystem
 
 %description
 

@@ -34,17 +34,17 @@ Source0:
 Source1:        %{name}-fontconfig.conf
 BuildRoot:      %(mktemp -ud %{_tmppath}/%{name}-%{version}-%{release}-XXXXXX)
 
-BuildArch:     noarch
-BuildRequires: fontpackages-devel
+BuildArch:      noarch
+BuildRequires:  fontpackages-devel
 
 %description
 %common_desc
 
 
 %package common
-Summary:  Common files for <NAME> (documentation…)
-Group:    User Interface/X
-Requires: fontpackages-filesystem
+Summary:        Common files for <NAME> (documentation…)
+Group:          User Interface/X
+Requires:       fontpackages-filesystem
 
 %description common
 %common_desc
@@ -52,10 +52,10 @@ Requires: fontpackages-filesystem
 This package consists of files used by other %{name} packages.
 
 # Repeat for every font family
-%package  <FAMILY>
-Summary:  
-Group:    User Interface/X
-Requires: %{name}-common = %{version}-%{release}
+%package        <FAMILY>
+Summary:         
+Group:          User Interface/X
+Requires:       %{name}-common = %{version}-%{release}
 
 %description <FAMILY>
 %common_desc
