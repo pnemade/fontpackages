@@ -1,3 +1,4 @@
+1.13 - small fixes
 1.12 - make some spec indenting closer to what rpmdevtools uses; make
 %{_sysconfdir}/fonts a macro to avoid a cycle with the fontconfig package
 1.11 - fix hosting info in readme
