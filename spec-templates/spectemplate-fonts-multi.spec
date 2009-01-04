@@ -85,11 +85,11 @@ install -m 0755 -d %{buildroot}%{_fontconfig_templatedir} \
 install -m 0644 -p %{SOURCEX} \
         %{buildroot}%{_fontconfig_templatedir}/%{fontconf}-<FAMILYX>.conf
 
-for fontconf in %{fontconf}-<FAMILYX>.conf \
-                %{fontconf}-<FAMILYY>.conf \
-                %{fontconf}-<FAMILYZ>.conf ; do
-  ln -s %{_fontconfig_templatedir}/$fontconf \
-        %{buildroot}%{_fontconfig_confdir}/$fontconf
+for fconf in %{fontconf}-<FAMILYX>.conf \
+             %{fontconf}-<FAMILYY>.conf \
+             %{fontconf}-<FAMILYZ>.conf ; do
+  ln -s %{_fontconfig_templatedir}/$fconf \
+        %{buildroot}%{_fontconfig_confdir}/$fconf
 done
 
 
