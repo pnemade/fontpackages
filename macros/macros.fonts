@@ -1,6 +1,6 @@
 # RPM macros for font packages.
 #
-# © 2008 Nicolas Mailhot <nim at fedoraproject dot org>
+# © 2008-2009 Nicolas Mailhot <nim at fedoraproject dot org>
 
 ## Default directories
 
@@ -40,23 +40,27 @@
 
 %_font_pkg(n:f:) \
 \
-%post %{-n*} \
+%define subpkg_name %{-n: %([ "%{name}" = "%{fontname}-fonts" ] && echo "-n %{fontname}-%{-n*}-fonts" || echo "%{-n*}-fonts")} \
+\
+%post %{subpkg_name} \
 if [ -x %{_bindir}/fc-cache ]; then \
     %{_bindir}/fc-cache %{_fontdir} || : \
 fi \
 \
 \
-%postun %{-n*} \
+%postun %{subpkg_name} \
 if [ $1 -eq 0 -a -x %{_bindir}/fc-cache ] ; then \
     %{_bindir}/fc-cache %{_fontdir} || : \
 fi\
 \
 \
-%files %{-n*} \
+%files %{subpkg_name} \
 %defattr(0644,root,root,0755) \
 \
 %{-f:%{_fontconfig_templatedir}/%{-f*}} \
 %{-f:%config(noreplace) %{_fontconfig_confdir}/%{-f*}} \
+\
+%{!-n:%dir %{_fontdir}} \
 \
 %(echo %* | sed "s+ +\\n+g"| sed "s+^+%{_fontdir}/+g")
 

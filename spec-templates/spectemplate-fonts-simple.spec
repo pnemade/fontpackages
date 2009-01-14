@@ -64,7 +64,6 @@ rm -fr %{buildroot}
 %_font_pkg -f %{fontconf} *.ttf
 
 %doc
-%dir %{_fontdir}
 
 
 %changelog

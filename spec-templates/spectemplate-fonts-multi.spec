@@ -42,7 +42,7 @@ BuildRequires:  fontpackages-devel
 
 
 %package common
-Summary:        Common files for <NAME> (documentation…)
+Summary:        Common files of <NAME>
 Group:          User Interface/X
 Requires:       fontpackages-filesystem
 
@@ -52,12 +52,12 @@ Requires:       fontpackages-filesystem
 This package consists of files used by other %{name} packages.
 
 # Repeat for every font family
-%package        <FAMILY>
+%package -n %{fontname}-<FAMILY>-fonts
 Summary:        
 Group:          User Interface/X
 Requires:       %{name}-common = %{version}-%{release}
 
-%description <FAMILY>
+%description -n %{fontname}-<FAMILY>-fonts
 %common_desc
 
 <FAMILY DESCRIPTION>
