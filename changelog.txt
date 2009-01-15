@@ -1,3 +1,4 @@
+1.15 - Replace shell hacks in the main macro by clean lua code
 1.14 - New subpackage naming rules
 1.13 - small fixes
 1.12 - make some spec indenting closer to what rpmdevtools uses; make
