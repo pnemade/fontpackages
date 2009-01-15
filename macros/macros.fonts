@@ -60,7 +60,6 @@ fi\
 %{-f:%{_fontconfig_templatedir}/%{-f*}} \
 %{-f:%config(noreplace) %{_fontconfig_confdir}/%{-f*}} \
 \
-%{!-n:%dir %{_fontdir}} \
 \
 %(echo %* | sed "s+ +\\n+g"| sed "s+^+%{_fontdir}/+g")
 
