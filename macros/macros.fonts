@@ -40,7 +40,11 @@
 
 %_font_pkg(n:f:) \
 \
-%define subpkg_name %{-n: %([ "%{name}" = "%{fontname}-fonts" ] && echo "-n %{fontname}-%{-n*}-fonts" || echo "%{-n*}-fonts")} \
+%define subpkg_name %{-n: %{lua: \
+if rpm.expand("%{name}") == rpm.expand("%{fontname}-fonts") \
+then print(rpm.expand("-n %{fontname}-%{-n*}-fonts")) \
+else print(rpm.expand("%{-n*}-fonts")) \
+end } } \
 \
 %post %{subpkg_name} \
 if [ -x %{_bindir}/fc-cache ]; then \
@@ -61,5 +65,6 @@ fi\
 %{-f:%config(noreplace) %{_fontconfig_confdir}/%{-f*}} \
 \
 \
-%(echo %* | sed "s+ +\\n+g"| sed "s+^+%{_fontdir}/+g")
-
+%{lua: for arg=1,rpm.expand("%#") do \
+print(rpm.expand("%{_fontdir}/%"..arg).."\\n") \
+end}
