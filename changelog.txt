@@ -1,3 +1,4 @@
+1.16 - Fix recently introduced typo in the simple spec template
 1.15 - Replace shell hacks in the main macro by clean lua code
 1.14 - New subpackage naming rules
 1.13 - small fixes
