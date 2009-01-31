@@ -1,0 +1,23 @@
+Fontconfig generic font families
+
+The CSS classification system currently used by fontconfig is the following:
+
+   1. a font that can not be used to write long “professional” texts is a 
+      “fantasy” font.
+   2. otherwise:
+         1. if it's monospaced, it's a “monospace” font,
+         2. if it's variable-width and:
+               1. it simulates hand-written text, it's a “cursive” font,
+               2. it uses serifs¹, it's a “serif” font,
+               3. it does not use serifs, it's a “sans-serif” font, 
+         3. otherwise, are you really sure it's not a “fantasy” font? 
+
+Some font authors also make their fonts self-categorize, thus checking the 
+font metadata in fontforge may provide another hint². However, sometimes this 
+metadata is missing or plain false, so do not rely on it 100%. 
+
+
+¹ http://en.wikipedia.org/wiki/Serif
+² <CTRL> + <SHIFT> + <F> then check the OS/2 tab.
+
+© 2009 Nicolas Mailhot <nim at fedoraproject dot org>
