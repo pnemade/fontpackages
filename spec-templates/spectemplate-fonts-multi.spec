@@ -1,29 +1,14 @@
-# This template can be used with complex multi-font releases
-# (several font families in one upstream archive):
-# — if you intend to package a single font family, use
-#   spectemplate-fonts-simple.spec
-# – if upstream releases separate fonts in separate archives, do not try to
-#   stuff them in a single spec/package, just package them separately
-#
-# Please remove the template comments when creating your own file;
-# <FOO> must be replaced by something appropriate for your font.
-
 %define fontname <FONTNAME>
-%define fontconf <XX>-%{fontname}
+%define fontconf <①>-%{fontname}
 
-#define archivename %{name}-%{version}
+#define archivename %{name}-%{version} ②
 
-# This will be reused in every sub-package description
-# Please do not forget to complete it with subpackage-specific information
 %define common_desc \
-<FONT COLLECTION DESCRIPTION>
+<FONT COLLECTION DESCRIPTION: ③>
 
 
 Name:           %{fontname}-fonts
-# Do not trust font metadata versionning unless you've checked upstream does
-# update versions on file changes. When in doubt use the timestamp of the most
-# recent file as version.
-Version:        
+Version:        <④>
 Release:        1%{?dist}
 Summary:        
 
@@ -51,7 +36,7 @@ Requires:       fontpackages-filesystem
 
 This package consists of files used by other %{name} packages.
 
-# Repeat for every font family
+# Repeat for every font family ⑤
 %package -n %{fontname}-<FAMILY>-fonts
 Summary:        
 Group:          User Interface/X
@@ -105,3 +90,47 @@ rm -fr %{buildroot}
 
 
 %changelog
+
+
+# Documentation
+# (remove it from your final spec file, with the other comments)
+#
+#
+# This template can be used with complex multi-font releases
+# (several font families ⑤ in one upstream archive):
+# — if you intend to package a single font family, use
+#   spectemplate-fonts-simple.spec
+# – if upstream releases separate fonts in separate archives, do not try to
+#   stuff them in a single srpm, just package them separately.
+#
+# <FOO> placeholders must be replaced by something appropriate for your font.
+#
+#
+# ①
+# Two-digit fontconfig priority number, see:
+# /usr/share/fontconfig/templates/fontconfig-priorities.txt
+#
+# ②
+# Optional
+#
+# ③
+# This will be reused in every sub-package description.
+# Please do not forget to complete it with subpackage-specific information.
+#
+# ④
+# Do not trust font metadata versionning unless you've checked upstream does
+# update versions on file changes. When in doubt use the timestamp of the most
+# recent file as version. “1.0” versions especially are suspicious.
+#
+# ⑤
+# — A font family corresponds to one entry in GUI font lists. For example,
+#   DejaVu Sans, DejaVu Serif and DejaVu Sans Mono are three different font
+#   families.
+# — A font family is subdivided in faces or styles. DejaVu Sans Normal, DejaVu
+#   Sans Bold, DejaVu Sans Condensed Italic are three faces of the DejaVu Sans
+#   font family.
+# — A font-metadata aware tool such as gnome-font-viewer or fontforge can be
+#   used to check the font family name and the font face/style declared by a
+#   font file.
+# — For use in spec files, convert names to lowerscript and replace spaces
+#   with “-”
