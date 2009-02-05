@@ -61,6 +61,8 @@ fi\
 %files %{subpkg_name} \
 %defattr(0644,root,root,0755) \
 \
+%dir %{_fontdir} \
+\
 %{-f:%{_fontconfig_templatedir}/%{-f*}} \
 %{-f:%config(noreplace) %{_fontconfig_confdir}/%{-f*}} \
 \

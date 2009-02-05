@@ -26,6 +26,7 @@ BuildRequires:  fontpackages-devel
 %common_desc
 
 
+# If you have to share some files ⑤
 %package common
 Summary:        Common files of <NAME>
 Group:          User Interface/X
@@ -36,7 +37,7 @@ Requires:       fontpackages-filesystem
 
 This package consists of files used by other %{name} packages.
 
-# Repeat for every font family ⑤
+# Repeat for every font family ➅
 %package -n %{fontname}-<FAMILY>-fonts
 Summary:        
 Group:          User Interface/X
@@ -86,8 +87,6 @@ rm -fr %{buildroot}
 %defattr(0644,root,root,0755)
 %doc 
 
-%dir %{_fontdir}
-
 
 %changelog
 
@@ -123,6 +122,12 @@ rm -fr %{buildroot}
 # recent file as version. “1.0” versions especially are suspicious.
 #
 # ⑤
+# Most of the times when upstream releases a set of font families in a single
+# archive it also does not split documentation. If that is not your case and
+# you have no file that needs sharing between your font subpackages, you can
+# safely remove any trace of the -common subpackage from your spec file.
+#
+# ➅
 # — A font family corresponds to one entry in GUI font lists. For example,
 #   DejaVu Sans, DejaVu Serif and DejaVu Sans Mono are three different font
 #   families.

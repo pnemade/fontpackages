@@ -52,8 +52,6 @@ rm -fr %{buildroot}
 
 %doc
 
-%dir %{_fontdir}
-
 
 %changelog
 
