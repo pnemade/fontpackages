@@ -1,3 +1,5 @@
+1.19 - Add partial templates for fonts subpackages of other packages, update
+       for rpm 4.6 changes in fedora-devel
 1.18 - Auto-own the fonts directory, multiple ownership is ok after all
 1.17 - Tweak spec templates documentation, add fontconfig documentation
 1.16 - Fix recently introduced typo in the simple spec template
