@@ -18,6 +18,7 @@ BuildRequires:  fontpackages-devel
 %package fonts-common
 Summary:        Common files of <NAME>
 Group:          User Interface/X
+BuildArch:      noarch
 Requires:       fontpackages-filesystem
 
 %description fonts-common
@@ -30,6 +31,7 @@ This package consists of files used by other %{name} font packages.
 %package <FAMILY>-fonts
 Summary:        
 Group:          User Interface/X
+BuildArch:      noarch
 Requires:       %{name}-fonts-common = %{version}-%{release}
 
 %description -n %{fontname}-<FAMILY>-fonts

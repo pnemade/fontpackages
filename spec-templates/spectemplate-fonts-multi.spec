@@ -28,7 +28,6 @@ BuildRequires:  fontpackages-devel
 
 %package common
 Summary:        Common files of <NAME>
-Group:          User Interface/X
 Requires:       fontpackages-filesystem
 
 %description common
@@ -39,7 +38,6 @@ This package consists of files used by other %{name} packages.
 # Repeat for every font family ➅
 %package -n %{fontname}-<FAMILY>-fonts
 Summary:        
-Group:          User Interface/X
 Requires:       %{name}-common = %{version}-%{release}
 
 %description -n %{fontname}-<FAMILY>-fonts
