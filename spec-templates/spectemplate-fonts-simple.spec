@@ -1,7 +1,7 @@
-%define fontname <FONTNAME>
-%define fontconf <①>-%{fontname}.conf
+%global fontname <FONTNAME>
+%global fontconf <①>-%{fontname}.conf
 
-#define archivename %{name}-%{version} ②
+#global archivename %{name}-%{version} ②
 
 Name:           %{fontname}-fonts
 Version:        <③>

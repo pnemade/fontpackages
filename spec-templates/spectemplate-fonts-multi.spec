@@ -1,9 +1,9 @@
-%define fontname <FONTNAME>
-%define fontconf <①>-%{fontname}
+%global fontname <FONTNAME>
+%global fontconf <①>-%{fontname}
 
-#define archivename %{name}-%{version} ②
+#global archivename %{name}-%{version} ②
 
-%define common_desc \
+%global common_desc \
 <FONT COLLECTION DESCRIPTION: ③>
 
 

@@ -1,3 +1,4 @@
+1.20 - Change %define to %global in templates
 1.19 - Add partial templates for fonts subpackages of other packages, update
        for rpm 4.6 changes in fedora-devel
 1.18 - Auto-own the fonts directory, multiple ownership is ok after all

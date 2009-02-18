@@ -1,4 +1,4 @@
-%define fontconf <①>-%{name}-<FAMILY>.conf
+%global fontconf <①>-%{name}-<FAMILY>.conf
 
 # …
 

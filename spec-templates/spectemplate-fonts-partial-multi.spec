@@ -1,8 +1,8 @@
-%define fontconf <①>-%{name}
+%global fontconf <①>-%{name}
 
 # …
 
-%define common_font_desc \
+%global common_font_desc \
 <FONT COLLECTION DESCRIPTION: ②>
 
 Source1:        %{name}-<FAMILY>-fontconfig.conf
