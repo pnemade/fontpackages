@@ -24,7 +24,41 @@
 
 ## Magic
 
-# Font (sub)packaging magic
+# Utility macro that computes a canonical font (sub)package name
+#
+# Expects an (optional) subpackage name as argument
+
+%_font_pkg_name() %{lua:
+local function rpmeval(name)
+  local sname = rpm.expand(name)
+  if sname == name
+  then return ""
+  else
+    sname = string.lower("-" .. sname .. "-")
+    sname = string.gsub(sname, "[_%-]+", "-")
+    sname = string.gsub(sname, "%-font(s?)%-", "-")
+    sname = string.gsub(sname, "^%-", "")
+    sname = string.gsub(sname, "%-$", "")
+    return sname
+  end
+end
+local function meld(name1,name2)
+  local name3 = "-" .. name2 .. "-"
+  for token in string.gmatch(name1 .. "-" , "..-%-") do
+    token = string.gsub(token, "%-", "%%-")
+    name3 = string.gsub(name3, "%-" .. token, "-")
+  end
+  return string.gsub( name1 .. name3 , "%-+$", "")
+end
+local pkgname  = rpmeval("%{name}")
+local fontname = rpmeval("%{fontname}")
+local subname  = rpmeval("%1")
+print(meld(meld(pkgname,fontname),subname) .. "-fonts")
+}
+
+
+# Macro to generate file sections and scriptlets for font (sub)packages
+#
 # Expects:
 # – an (optional) subpackage name as argument: -n <name>
 #      without -n the macro will work on the core package
@@ -39,34 +73,28 @@
 # the corresponding symlink point to /dev/null
 
 %_font_pkg(n:f:) \
-\
-%define subpkg_name %{-n: %{lua: \
-if rpm.expand("%{name}") == rpm.expand("%{fontname}-fonts") \
-then print(rpm.expand("-n %{fontname}-%{-n*}-fonts")) \
-else print(rpm.expand("%{-n*}-fonts")) \
-end } } \
-\
-%post %{subpkg_name} \
+%define spn %_font_pkg_name %{-n:%{-n*}} \
+%{echo:Generating content for font package: %{spn} \
+}\
+%post -n %{spn} \
 if [ -x %{_bindir}/fc-cache ]; then \
     %{_bindir}/fc-cache %{_fontdir} || : \
 fi \
 \
 \
-%postun %{subpkg_name} \
+%postun -n %{spn}  \
 if [ $1 -eq 0 -a -x %{_bindir}/fc-cache ] ; then \
     %{_bindir}/fc-cache %{_fontdir} || : \
 fi\
 \
 \
-%files %{subpkg_name} \
+%files -n %{spn} \
 %defattr(0644,root,root,0755) \
 \
 %dir %{_fontdir} \
-\
+%{lua: \
+for arg=1,rpm.expand("%#") do \
+  print(rpm.expand("%{_fontdir}/%" .. arg) .. "\\n") \
+end} \
 %{-f:%{_fontconfig_templatedir}/%{-f*}} \
-%{-f:%config(noreplace) %{_fontconfig_confdir}/%{-f*}} \
-\
-\
-%{lua: for arg=1,rpm.expand("%#") do \
-print(rpm.expand("%{_fontdir}/%"..arg).."\\n") \
-end}
+%{-f:%config(noreplace) %{_fontconfig_confdir}/%{-f*}}
