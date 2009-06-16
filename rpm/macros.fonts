@@ -54,7 +54,7 @@ local pkgname  = rpmeval("%{name}")
 local fontname = rpmeval("%{fontname}")
 local subname  = rpmeval("%1")
 print(meld(meld(pkgname,fontname),subname) .. "-fonts")
-}
+} %{nil}
 
 
 # Macro to generate file sections and scriptlets for font (sub)packages
@@ -97,4 +97,6 @@ for arg=1,rpm.expand("%#") do \
   print(rpm.expand("%{_fontdir}/%" .. arg) .. "\\n") \
 end} \
 %{-f:%{_fontconfig_templatedir}/%{-f*}} \
-%{-f:%config(noreplace) %{_fontconfig_confdir}/%{-f*}}
+%{-f:%config(noreplace) %{_fontconfig_confdir}/%{-f*} \
+} %{nil}
+
