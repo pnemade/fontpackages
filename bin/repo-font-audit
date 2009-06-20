@@ -56,7 +56,7 @@ tally() {
 t_datafile=$1
 
 t_file=$(cat "$t_datafile" | wc -l)
-t_file_size=$(awk -F '|' '{ sum += $12 } END { print sum }' "$t_datafile")
+t_file_size=$(awk -F '|' '{ sum += $14 } END { print sum }' "$t_datafile")
 t_file_size=$((t_file_size/(1024*1024)))
 
 t_rpm=$(awk -F '|' '{ print $2 "-" $3 "." $4 }' "$t_datafile" | sort | uniq | wc -l)
@@ -95,7 +95,7 @@ summary "$s_datafile"
 
 (
 echo "Format|Files|rpm|srpm|Files (MiB)|rpm (MiB)"
-awk -F '|' '$10 != "" { print $0 "|" $10 }' "$s_datafile" > tmp.s.csv
+awk -F '|' '$12 != "" { print $0 "|" $12 }' "$s_datafile" > tmp.s.csv
 substats tmp.s.csv) | column -t -s '|' | pretty_indent
 
 (echo "Format|Files|rpm|srpm|Files (MiB)|rpm (MiB)"
@@ -105,27 +105,26 @@ substats tmp.s.csv)| column -t -s '|' | pretty_indent
 rm tmp.s.csv
 }
 
+list-rpm() {
+awk -F '|' '{ if ( $6 == "M" ) print "[" $2 "]" ; \
+                          else print     $2     }' "$1" | sort | uniq \
+  | awk -F '|' '{ list = list " " $1 } END { print list }' | pretty_indent
+}
 
-# End of function declarations
+wws_resolve () {
+result="$1"
+for token in $2 ; do
+   token=$(echo "$token" | sed "s+_+ +g")
+   tmp=$(echo "$1" | sed "s=^$token$==gi")
+   [ "$tmp" != "$1" ] && result="$tmp"
+   tmp=$(echo "$1" | sed "s= $token$==gi")
+   [ "$tmp" != "$1" ] && result="$tmp"
+done
+echo "$result"
+}
 
-[ "$#" -lt "2" ] && usage
 
-ID=$1
-REPOID="$1-fontrepo"
-REPOURL=$2
-TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%S)
-TMPDIR=$(mktemp -d --tmpdir=/tmp font-package-audit-XXXXXXXXXX)
-
-FPL="$ID-$TIMESTAMP-font-packages.csv"
-PWFL="$ID-$TIMESTAMP-packages-with-fonts.csv"
-FFL="$ID-$TIMESTAMP-font-files.csv"
-CSL="$ID-$TIMESTAMP-checksums.csv"
-FL="$ID-$TIMESTAMP-repo-font-audit.csv"
-FLNM="$ID-$TIMESTAMP-repo-font-audit-no-multilib.csv"
-
-ORIGDIR="$PWD"
-cd $TMPDIR
-
+collect() {
 echo "Searching for packages with font metadata…"
 repoquery --repofrompath=$REPOID,$REPOURL --repoid=$REPOID \
           --qf "%{sourcerpm}|%{name}|%{epoch}:%{version}-%{release}|%{arch}|%{packagesize}" \
@@ -141,7 +140,6 @@ repoquery --repofrompath=$REPOID,$REPOURL --repoid=$REPOID \
 
 echo "Inspecting packages:"
 rm -f "$FFL"
-mkdir "tmp"
 cd "tmp"
 cat ../$FPL ../$PWFL | awk -F '|' '{ print $2 "-" $3 "." $4 }' | sort | uniq \
   | while read rpm ; do
@@ -151,14 +149,23 @@ cat ../$FPL ../$PWFL | awk -F '|' '{ print $2 "-" $3 "." $4 }' | sort | uniq \
   echo -n " ◔"
   wget --quiet -O "$rpm.rpm" $(repoquery --repofrompath=$REPOID,$REPOURL --repoid=$REPOID --location "$rpm" 2>/dev/null)
   echo -ne "\b◑"
+  rpmlint_score=$(rpmlint "$rpm.rpm" > "../rpmlint-$rpm.txt" 2>&1 ; echo $?)
   rpm2cpio "$rpm.rpm" > "$rpm.cpio"
   echo -ne "\b◕"
-  cpio --quiet -it < "$rpm.cpio" \
+  cpio --quiet -it < "$rpm.cpio" > "$rpm.lst"
+  nofont_score=$(cat "$rpm.lst" \
+    | grep -v "^./usr/share/fonts" \
+    | grep -v "^./usr/share/fontconfig/conf.avail/" \
+    | grep -v "^./etc/fonts/conf.d/" \
+    | grep -v "^./usr/share/doc/" \
+    | grep -v "^./etc/X11/fontpath.d/" \
+    | grep -viE '\.((ttf)|(ttc)|(otf)|(pfa)|(pfb)|(pcf)|(pcf\.gz))$' |wc -l)
+  cat "$rpm.lst" \
     | grep -iE '\.((ttf)|(ttc)|(otf)|(pfa)|(pfb)|(pcf)|(pcf\.gz))$' \
-    > "$rpm.lst"
-  cpio -idm --quiet -E "$rpm.lst" < "$rpm.cpio"
+    > "$rpm.fonts.lst"
+  cpio -idm --quiet -E "$rpm.fonts.lst" < "$rpm.cpio"
   echo -ne "\b● "
-  cat "$rpm.lst" | while read file; do
+  cat "$rpm.fonts.lst" | while read file; do
     unset target checksum type family style format
     type=$(file -bzh "$file")
     case $(echo "$type" | sed 's+ (\(.*\)++g' \
@@ -169,24 +176,26 @@ cat ../$FPL ../$PWFL | awk -F '|' '{ print $2 "-" $3 "." $4 }' | sort | uniq \
         echo -n "t"
         ;;
       "TrueType font collection data")
-	echo -n "T"
+        echo -n "T"
         ;;
       "OpenType font data")
-	echo -n "o"
+        echo -n "o"
         ;;
+      "X11 Portable Compiled Font data")
+        echo -n "b"
+        ;;
+      # PostScript files are a mess
       "PostScript Type 1 font text")
         echo -n "P"
         ;;
       "PostScript Type 1 font program data")
-	echo -n "p"
+        echo -n "p"
         ;;
-      "X11 Portable Compiled Font data")
-	echo -n "b"
+      "PostScript document text conforming DSC level 3.0")
+        type="ignored"
+        echo -n "-"
         ;;
-      "PostScript document text"|\
-      "PostScript document text conforming DSC level 3.0"|\
-      "PostScript document text conforming DSC level 3.0"|\
-      "8086 relocatable")
+      "PostScript document text"|"8086 relocatable")
         echo -n "x" >&2
         ;;
       "symbolic link to"|"broken symbolic link to")
@@ -200,11 +209,10 @@ cat ../$FPL ../$PWFL | awk -F '|' '{ print $2 "-" $3 "." $4 }' | sort | uniq \
         fi
         ;;
       *)
-        type="unknown"
-	echo -n "?"
+        echo -n "?"
         ;;
     esac
-    if [ "$type" != "unknown" -a "$type" != "ignored" ] ; then
+    if [ "$type" != "ignored" ] ; then
       size=$(du -b "$file" | awk '{ print $1 ; exit }')
       if [ ! -h "$file" ] ; then
         checksum=$(sha256sum "$file" | awk '{ print $1 ; exit }')
@@ -217,7 +225,8 @@ cat ../$FPL ../$PWFL | awk -F '|' '{ print $2 "-" $3 "." $4 }' | sort | uniq \
         fi
       fi
       file=$(echo "$file" | sed "s+^./+/+g")
-      echo "$rpm|$file|$family|$style|$format|$type|$size|$checksum|$target" >> "../../$FFL"
+      echo "$rpm|$rpmlint_score|$nofont_score\
+|$file|$family|$style|$format|$type|$size|$checksum|$target" >> "../../$FFL"
     fi
   done
   cd ..
@@ -225,31 +234,39 @@ cat ../$FPL ../$PWFL | awk -F '|' '{ print $2 "-" $3 "." $4 }' | sort | uniq \
   echo " ♻"
 done
 cd ..
-rm -fr tmp
+}
 
+consolidate() {
 echo "Consolidating data…"
+
 rm -f "$FL"
 cat "$PWFL" | while read rpmline; do
   grep -q "$rpmline" "$FPL" && metadata="M" || metadata=""
   rpm=$(echo "$rpmline" | awk -F '|' '{ print $2 "-" $3 "." $4 ; exit }')
-  cat "$FFL" \
-     | awk -F '|' -v rpm="$rpm" '$1 == rpm { print $2 "|" $3 "|" $4 "|" $5 "|" $6 "|" $7 "|" $8 "|" $9 }' \
-     | while read fileline; do
-     if [ "$(echo $fileline| awk -F '|' '{ print $5 }')" == "Link" ] ; then
-       source="$(awk -F '|' -v target=""$(echo $fileline| awk -F '|' '{ print $8 }')"" \
-                  '$2 == target { print $1 ; exit }' ""$FFL"" )"
-     else source=""
-     fi
+  awk -F '|' -v rpm="$rpm" '$1 == rpm' "$FFL" \
+  | while read rawfileline ; do
+    echo "$rawfileline" | \
+      awk -F "|" '{ for (i = 2; i < NF; i++) list = list $i "|" } END { print list $NF }' \
+      | while read fileline ; do
+      if [ "$(echo $fileline| awk -F '|' '{ print $7 }')" == "Link" ] ; then
+        source="$(awk -F '|' -v target=""$(echo $fileline| awk -F '|' '{ print $10 }')"" \
+                   '$4 == target { print $1 ; exit }' ""$FFL"" )"
+      else source=""
+      fi
      echo "$rpmline|$metadata|$fileline|$source" >> "$FL"
      done
+  done
 done
 
-awk -F '|' '$13 != "" { print $1 "|" $2 "|" $7 "|" $13 }' "$FL" | sort | uniq \
+
+awk -F '|' '$15 != "" { print $1 "|" $2 "|" $9 "|" $15 }' "$FL" | sort | uniq \
   | while read sig ; do
     awk -F '|' -v sig="$sig" \
-        '($1 "|" $2 "|" $7 "|" $13) == sig { print $0 ; exit }' "$FL"
+        '($1 "|" $2 "|" $9 "|" $15) == sig { print $0 ; exit }' "$FL"
   done > "$FLNM"
+}
 
+analyse() {
 echo ""
 echo "Statistics:"
 echo ""
@@ -257,9 +274,8 @@ echo ""
 echo "– packages that declare font metadata:"
 echo ""
 
-awk -F '|' '$6=="M"' "$FL" > tmp.csv
-stats tmp.csv
-rm tmp.csv
+awk -F '|' '$6=="M"' "$FL" > tmp/tmp.csv
+stats tmp/tmp.csv
 
 echo "☛ File size is computed as extracted, while rpm is a compressed \
 format." | pretty_indent
@@ -269,9 +285,8 @@ or removed." | pretty_indent
 echo "– font files in other packages (we should not find any!)"
 echo ""
 
-awk -F '|' '($6 != "M") && ($11 != "Link")' "$FL" > tmp.csv
-stats tmp.csv
-rm tmp.csv
+awk -F '|' '($6 != "M") && ($13 != "Link")' "$FL" > tmp/tmp.csv
+stats tmp/tmp.csv
 
 echo "☛ Bad packaging may result in arched packages or mixed content." \
 | pretty_indent
@@ -282,92 +297,217 @@ echo ""
 
 # Arch check
 
-echo "– packages that include fonts, but are not noarch:"
+echo "– font files in arch packages:"
 
-awk -F '|' '($11 != "Link") && ($4 != "noarch")' "$FL" > tmp.csv
+awk -F '|' '($13 != "Link") && ($4 != "noarch")' "$FL" > tmp/tmp.csv
 
-awk -F '|' '{ print $2 "." $4 "|" $6 }' tmp.csv | sort | uniq \
+awk -F '|' '{ print $2 "." $4 "|" $6 }' tmp/tmp.csv | sort | uniq \
   | awk -F '|' '{ if ( $2 == "M" ) list=(list " [" $1 "]") ;
                               else list=(list " "  $1    ) } END \
                 { print list }' | pretty_indent
 
-summary tmp.csv
-rm tmp.csv
+summary tmp/tmp.csv
 
 # Install location check
 
-echo "– packages that install fonts outside /usr/share/fonts:"
+echo "– font files installed outside /usr/share/fonts:"
 
-awk -F '|' '($11 != "Link") && ($7 !~ /^\/usr\/share\/fonts\//)' "$FL" > tmp.csv
+awk -F '|' '($13 != "Link") && ($9 !~ /^\/usr\/share\/fonts\//)' "$FL" > tmp/tmp.csv
 
-awk -F '|' '{ print $2 }' tmp.csv | sort | uniq \
-  | awk -F '|' '{ list = list " " $1 } END { print list }' | pretty_indent
+list-rpm tmp/tmp.csv
 
-summary tmp.csv
-rm tmp.csv
+summary tmp/tmp.csv
 
 echo "☛ Font files need to be installed under the /usr/share/fonts root for \
 fontconfig to expose them." | pretty_indent
 
+# Mixed contents check
+
+echo "— fonts in packages that contain non-font data:"
+
+awk -F '|' '($13 != "Link") && ($8 != "0")' "$FL" > tmp/tmp.csv
+
+list-rpm tmp/tmp.csv
+
+summary tmp/tmp.csv
+
+echo "☛ Every font should be installable as-is without pulling in other \
+material." | pretty_indent
+
 # Metadata check
 
-echo "– packages that include fonts, but do not declare font metadata:"
+echo "– fonts in packages that do not declare font metadata:"
 
-awk -F '|' '($11 != "Link") && ($6 != "M")' "$FL" > tmp.csv
+awk -F '|' '($13 != "Link") && ($6 != "M")' "$FL" > tmp/tmp.csv
 
-awk -F '|' '{ print $2 }' tmp.csv | sort | uniq \
-  | awk -F '|' '{ list = list " " $1 } END { print list }' | pretty_indent
+list-rpm tmp/tmp.csv
 
-summary tmp.csv
-rm tmp.csv
+summary tmp/tmp.csv
 
 echo "☛ Automatic font installation relies on this metadata being present \
 to work." | pretty_indent
+
+# Naming checks
+
+echo "– fonts in packages that do not use font package naming conventions:"
+
+awk -F "|" '$2 !~ /^[0-9abcdefghijklmnopqrstuvwxyz\.-]*-fonts$/' "$FL" > tmp/tmp.csv
+
+list-rpm tmp/tmp.csv
+
+summary tmp/tmp.csv
+
+echo -n "— fonts that declare face attributes in family names: "
+
+rm -f tmp/tmp.csv
+awk -F "|" '{ print $10 }' "$FL" | sort | uniq \
+  | while read family ; do
+    rfamily=$(echo "$family" | sed "s=[ \t_\.-]\+= =g" | sed "s=^ ==g" \
+                             | sed "s= $==g")
+    badnaming=0 
+    for token in Book Normal Regular Upright ita ital italic cursive \
+                 kursiv inclined oblique backslanted backslant slanted \
+                 extra_compressed ext_compressed ultra_compressed \
+                 ultra_condensed ultra_cond UltraCondensed compressed \
+                 extra_condensed ext_condensed extra_cond ext_cond \
+                 ExtraCondensed narrow compact semi_condensed semi_cond \
+                 SemiCondensed wide semi_expanded semi_extended SemiExpanded \
+                 extra_expanded ext_expanded extra_extended ext_extended \
+                 ExtraExpanded ultra_expanded ultra_extended UltraExpanded \
+                 condensed cond expanded extended extra_thin ext_thin \
+                 ultra_thin Thin extra_light ext_light ultra_light ExtraLight \
+                 semi_bold demi_bold DemiBold extra_bold ext_bold ultra_bold \
+                 ExtraBold extra_black ext_black ultra_black ExtraBlack bold \
+                 light medium black heavy nord demi ultra ; do
+      token=$(echo "$token" | sed "s+_+ +g")
+      nface=$(echo " $rfamily " | sed "s= $token ==gi" \
+                                | sed "s=^ ==g" | sed "s= $==g")
+      [ "$nface" != "$rfamily" ] && badnaming=$((badnaming+1))
+    done
+    if [ $badnaming -gt 0 ] ; then
+      awk -F "|" -v family="$family" '$10 == family' "$FL" >> tmp/tmp.csv
+      echo -n "x"
+    else echo -n "."
+    fi
+  done
+echo ""
+
+awk -F "|" '{ print $10 }' tmp/tmp.csv | sort | uniq \
+  | while read family ; do
+    rpmlist=$(awk -F "|" -v family="$family" '$10 == family \
+      { if ( $6 == "M" ) print "[" $2 "]" ; \
+                    else print     $2     }' tmp/tmp.csv \
+      | sort | uniq | while read rpm ; do echo -n "$rpm " ; done)
+    echo "$family|$rpmlist"
+  done | column -t -s '|' | pretty_indent
+
+summary tmp/tmp.csv
+
+echo -e "☛ To be properly processed by applications face qualifiers need to \
+be declared in face names (there may be a few false positives here as some \
+common face qualifiers can be used with a different meaning in family names; \
+if that's not the case, please ask the font upstream to fix its naming)." \
+| pretty_indent
+
+echo -n "— fonts that declare non-WWS compliant faces: "
+
+rm -f tmp/tmp.csv
+awk -F "|" '{ print $11 }' "$FL" | sort | uniq \
+  | while read face ; do
+    rface=$(echo "$face" | sed "s=[ \t_\.-]\+= =g" | sed "s=^ ==g" \
+                         | sed "s= $==g")
+    rface=$(wws_resolve "$rface" "Book Normal Regular Roman Upright")
+    rface=$(wws_resolve "$rface" "ita ital italic cursive kursiv inclined \
+                                  oblique backslanted backslant slanted")
+    rface=$(wws_resolve "$rface" "extra_compressed ext_compressed \
+                                  ultra_compressed ultra_condensed \
+                                  ultra_cond UltraCondensed compressed \
+                                  extra_condensed ext_condensed extra_cond \
+                                  ext_cond ExtraCondensed narrow compact \
+                                  semi_condensed semi_cond SemiCondensed \
+                                  wide semi_expanded semi_extended \
+                                  SemiExpanded extra_expanded ext_expanded \
+                                  extra_extended ext_extended ExtraExpanded \
+                                  ultra_expanded ultra_extended \
+                                  UltraExpanded condensed cond expanded \
+                                  extended")
+    rface=$(wws_resolve "$rface" "extra_thin ext_thin ultra_thin Thin \
+                                  extra_light ext_light ultra_light \
+                                  ExtraLight semi_bold demi_bold DemiBold \
+                                  extra_bold ext_bold ultra_bold ExtraBold \
+                                  extra_black ext_black ultra_black \
+                                  ExtraBlack bold light medium black heavy \
+                                  nord demi ultra")
+    if [ "$rface" != "" ] ; then
+      awk -F "|" -v face="$face" '$11 == face' "$FL" >> tmp/tmp.csv
+      echo -n "x"
+    else echo -n "."
+    fi
+  done
+echo ""
+
+awk -F "|" '{ print $10 ", " $11 }' tmp/tmp.csv | sort | uniq \
+  | while read fontface ; do
+    rpmlist=$(awk -F "|" -v fontface="$fontface" '($10 ", " $11) == fontface \
+      { if ( $6 == "M" ) print "[" $2 "]" ; \
+                    else print     $2     }' tmp/tmp.csv \
+      | sort | uniq | while read rpm ; do echo -n "$rpm " ; done)
+    echo "$fontface|$rpmlist"
+  done | column -t -s '|' | pretty_indent
+
+summary tmp/tmp.csv
+
+echo -e "☛ This WWS-like test checks if font faces use the: \n\
+“weight width slant [regular]” \n\
+naming convention. \n\
+(Microsoft resolves over a combined “Family Face” string, since our \
+applications use “Family” and “Face” separately this test considers “Face” \
+alone. We also reject weight abbreviations and suffixes, if a font uses them \
+check compliance manually.) \n\
+If your font is listed here please ask its upstream to fix its naming." \
+| pretty_indent
 
 # Duplication checks
 
 echo "– exact file duplication (ignoring multilib):"
 echo "☛ Ignoring multilib to keep it short" | pretty_indent
 
-awk -F '|' '{ print $13 }' "$FLNM" | sort | uniq -d \
+awk -F '|' '{ print $15 }' "$FLNM" | sort | uniq -d \
   | while read checksum ; do
-    awk -F '|' -v checksum="$checksum" '$13==checksum' "$FLNM"
-done > tmp.csv
+    awk -F '|' -v checksum="$checksum" '$15==checksum' "$FLNM"
+done > tmp/tmp.csv
 
-awk -F '|' '{ print $13 }' tmp.csv | uniq \
+awk -F '|' '{ print $15 }' tmp/tmp.csv | uniq \
   | while read checksum ; do
-    awk -F '|' -v checksum="$checksum" '$13==checksum \
-        { if ( $6 == "M" ) print $7 "|[" $2 "." $4 "]|" "(" $1 ")" ;
-          else             print $7 "|"  $2 "." $4  "|" "(" $1 ")" }' \
-    tmp.csv | column -t -s '|' | pretty_indent
+    awk -F '|' -v checksum="$checksum" '$15==checksum \
+        { if ( $6 == "M" ) print $9 "|[" $2 "." $4 "]" ;
+          else             print $9 "|"  $2 "." $4  }' \
+    tmp/tmp.csv | column -t -s '|' | pretty_indent
   done
 
-summary tmp.csv
-rm tmp.csv
+summary tmp/tmp.csv
 
 echo "– font faces duplicated by different packages:"
 echo "☛ Excluding multilib and PCF fonts (because they are pretty much \
 hopeless)." | pretty_indent
 
-rm -f tmp.csv
-awk -F '|' '($8 != "") && ($9 != "") && ($10 != "PCF") && ($10 != "Type 1") \
-    { print $2 "-" $3 "." $4 "|" $8 "|" $9 }' "$FLNM" \
+rm -f tmp/tmp.csv
+awk -F '|' '($10 != "") && ($11 != "") && ($12 != "PCF") && ($12 != "Type 1") \
+    { print $2 "-" $3 "." $4 "|" $10 "|" $11 }' "$FLNM" \
     | sort | uniq | awk -F '|' '{ print $2 "|" $3 }' \
     | sort | uniq -d | while read face ; do
     awk -F '|' -v face="$face" \
-        '($10 != "PCF") && (($8 "|" $9)==face)' "$FLNM" > tmp1.csv
+        '($12 != "PCF") && (($10 "|" $11)==face)' "$FLNM" > tmp/tmp1.csv
     packages=$(awk -F '|' '{ if ( $6 == "M" ) print "[" $2 "]" ; \
-                             else print $2 }' tmp1.csv \
+                             else print $2 }' tmp/tmp1.csv \
                | sort | uniq | while read rpm ; do echo -n "$rpm " ; done)
-    count=$(awk -F '|' '{ print $2 "-" $3 "." $4 }' tmp1.csv \
+    count=$(awk -F '|' '{ print $2 "-" $3 "." $4 }' tmp/tmp1.csv \
             | sort | uniq | wc -l)
-    cat tmp1.csv >> tmp.csv
+    cat tmp/tmp1.csv >> tmp/tmp.csv
     echo "$count|$face|$packages"
   done | sort -nr | column -t -s '|' | pretty_indent
 
-rm tmp1.csv
-summary tmp.csv
-rm tmp.csv
+summary tmp/tmp.csv
 
 echo "☛ Face duplication wastes resources \
 infrastructure and user side. Very often an upstream that copied some fonts \
@@ -380,36 +520,35 @@ fontconfig or symlinks to share it accross packages." | pretty_indent
 
 echo "– font faces duplicated within a package (ignoring legacy formats):"
 
-awk -F '|' '($8 != "") && ($9 != "") && ($10 != "PCF") && ($10 != "Type 1") \
-    { print $2 "-" $3 "." $4 "|" $8 "|" $9 }' "$FLNM" \
+awk -F '|' '($10 != "") && ($11 != "") && ($12 != "PCF") && ($12 != "Type 1") \
+    { print $2 "-" $3 "." $4 "|" $10 "|" $11 }' "$FLNM" \
   | sort | uniq -d | while read sig ; do
     awk -F '|' -v sig="$sig" \
-        '($10 != "PCF") && ($10 != "Type 1") && \
-         (($2 "-" $3 "." $4 "|" $8 "|" $9 ) == sig)' \
+        '($12 != "PCF") && ($12 != "Type 1") && \
+         (($2 "-" $3 "." $4 "|" $10 "|" $11 ) == sig)' \
          "$FLNM" ;
-    done > tmp.csv
+    done > tmp/tmp.csv
 
-awk -F '|' '{ print $2 "|" $8 "|" $9 "|" $7 }' tmp.csv \
+awk -F '|' '{ print $2 "|" $10 "|" $11 "|" $9 }' tmp/tmp.csv \
   | column -t -s '|' | pretty_indent
 
-summary tmp.csv
-rm tmp.csv
+summary tmp/tmp.csv
 
 echo "☛ Face duplication within a package is almost certainly a bug, except \
 for special symbol font families." | pretty_indent
 
+# Bad mixing checks
+
 echo "— packages that mix several font families (ignoring legacy formats):"
 
-awk -F '|' '($8 != "") && ($10 != "PCF") && ($10 != "Type 1")' "$FL" > tmp.csv
-awk -F '|' '{ print $2 "-" $3 "." $4 }' tmp.csv | sort | uniq \
+awk -F '|' '($10 != "") && ($12 != "PCF") && ($12 != "Type 1")' "$FL" > tmp/tmp.csv
+awk -F '|' '{ print $2 "-" $3 "." $4 }' tmp/tmp.csv | sort | uniq \
   | while read rpm ; do
     awk -F '|' -v rpm="$rpm" '(($2 "-" $3 "." $4) == rpm) \
-          { print $2 "|" $8 }' tmp.csv | sort | uniq \
+          { print $2 "|" $10 }' tmp/tmp.csv | sort | uniq \
       | awk -F '|' '{ sum+=1 ; rpm=$1 } END { if (sum > 1) print sum " " rpm  }'
   done | sort -nr | awk '{ list = list " " $2 " (" $1 ")" } END \
                          { print list }' | pretty_indent
-
-rm tmp.csv
 
 echo "☛ Reliable font autoinstallation requires shipping only one font family \
 per font package. This indicates problems in the packaging or the packaged \
@@ -419,16 +558,14 @@ font metadata." | pretty_indent
 
 echo "– packages that symlink font files:"
 
-awk -F '|' '$11=="Link"' "$FL" > tmp.csv
+awk -F '|' '$13=="Link"' "$FL" > tmp/tmp.csv
 
-awk -F '|' '{ print $2 }' tmp.csv | sort | uniq \
-  | while read rpm ; do echo -n "$rpm " ; done | pretty_indent
+list-rpm tmp/tmp.csv
 
-summary tmp.csv
-rm tmp.csv
+summary tmp/tmp.csv
 
 echo "    5 most symlinked packages:"
-awk -F '|' '$11=="Link" { print $15 "|" $2 "-" $3 "." $4 }' "$FL" | sort | uniq \
+awk -F '|' '$13=="Link" { print $17 "|" $2 "-" $3 "." $4 }' "$FL" | sort | uniq \
 | awk -F '|' '{ print $1 }' | uniq -c | sort -nr | head -5 | column -t | pretty_indent
 
 echo "☛ Symlinking font files is a way for non-font \
@@ -439,65 +576,100 @@ such as pangocairo)." | pretty_indent
 
 echo "– broken symlinks to font files:"
 
-awk -F '|' '($11 == "Link") && ($15 == "")' "$FL" > tmp.csv
-awk -F '|' '{ print $7 " → " $14 "|" $2 "-" $3 "." $4  }' tmp.csv \
+awk -F '|' '($13 == "Link") && ($17 == "")' "$FL" > tmp/tmp.csv
+awk -F '|' '{ print $9 " → " $16 "|" $2 "-" $3 "." $4  }' tmp/tmp.csv \
   | column -t -s "|" | pretty_indent
 
-summary tmp.csv
-rm tmp.csv
+summary tmp/tmp.csv
+
+echo "– packages with fonts rpmlint errors on:"
+
+awk -F '|' '($13 != "Link") && ($7 != "0")' "$FL" > tmp/tmp.csv
+
+list-rpm tmp/tmp.csv
+
+summary tmp/tmp.csv
+
 
 # Magic and other parsing checks
 
 echo "– packages with font files not identified as such by libmagic:"
 
-awk -F '|' '($11 !~ /font/) && ($11 !~ /Font/) && ($11 != "Link")' "$FL" > tmp.csv
+awk -F '|' '($13 !~ /font/) && ($13 !~ /Font/) && ($13 != "Link")' "$FL" > tmp/tmp.csv
 
-awk -F '|' '{ print $2 "-" $3 "." $4 }' tmp.csv | uniq \
+awk -F '|' '{ print $2 "-" $3 "." $4 }' tmp/tmp.csv | uniq \
   | while read rpm ; do
     awk -F '|' -v rpm="$rpm" '($2 "-" $3 "." $4) == rpm \
         { sum+=1 ; srpm =$1 } END \
-        { print sum "|" rpm "|(" srpm ")|" }' tmp.csv
+        { print sum "|" rpm "|(" srpm ")|" }' tmp/tmp.csv
   done | sort -nr | column -t -s '|' | pretty_indent
 
-summary tmp.csv
-rm tmp.csv
+summary tmp/tmp.csv
 
 echo "☛ Either libmagic has a bug or the files are malformed and need to be \
 fixed or dumped." | pretty_indent
 
 echo "– packages with font files fc-query can not parse:"
 
-awk -F '|' '($11 != "Link") && ($10 == "")' "$FL" > tmp.csv
+awk -F '|' '($13 != "Link") && ($12 == "")' "$FL" > tmp/tmp.csv
 
-awk -F '|' '{ print $2 "-" $3 "." $4 }' tmp.csv | uniq \
+awk -F '|' '{ print $2 "-" $3 "." $4 }' tmp/tmp.csv | uniq \
   | while read rpm ; do
     awk -F '|' -v rpm="$rpm" '($2 "-" $3 "." $4) == rpm \
         { sum+=1 ; srpm =$1 } END \
-        { print sum "|" rpm "|(" srpm ")|" }' tmp.csv
+        { print sum "|" rpm "|(" srpm ")|" }' tmp/tmp.csv
   done | sort -nr | column -t -s '|' | pretty_indent
 
-summary tmp.csv
-rm tmp.csv
+summary tmp/tmp.csv
 
 echo "☛ Either fontconfig has a bug or the files are malformed and need to be \
 fixed or dumped." | pretty_indent
 
 echo "– packages with localized metadata but no English variant:"
 
-awk -F '|' '($10 != "") && (($8 == "") || ($9 == ""))' "$FL" > tmp.csv
-awk -F '|' '{ print $7 "|" $2 "-" $3 "." $4 }' tmp.csv \
+awk -F '|' '($12 != "") && (($10 == "") || ($11 == ""))' "$FL" > tmp/tmp.csv
+awk -F '|' '{ print $9 "|" $2 "-" $3 "." $4 }' tmp/tmp.csv \
   | column -t -s '|' | pretty_indent
 
-summary tmp.csv
-rm tmp.csv
+summary tmp/tmp.csv
 
 echo "☛ The font files need to be fixed to declare metadata in English too." \
 | pretty_indent
 
+}
 
-bzip2 -9 "$FL"
-mv "$FL.bz2" "$ORIGDIR/"
-echo "Raw extracted data : $ORIGDIR/$FL.bz2"
+# End of function declarations
+
+[ "$#" -lt "2" ] && usage
+
+ID=$1
+REPOID="$1-fontrepo"
+REPOURL=$2
+TIMESTAMP=$(date -u +%Y%m%dT%H%M%S)
+ORIGDIR="$PWD"
+
+FPL="font-packages.csv"
+PWFL="packages-with-fonts.csv"
+FFL="font-files.csv"
+CSL="checksums.csv"
+FL="repo-font-audit.csv"
+FLNM="repo-font-audit-no-multilib.csv"
+RES="repo-font-audit-$ID-$TIMESTAMP"
+
+TMPDIR=$(mktemp -d --tmpdir=/var/tmp $RES-XXXXXXXXXX)
+cd $TMPDIR
+
+mkdir tmp
+
+collect
+consolidate
+analyse | tee report.txt
+
+mkdir "$RES"
+cp "$FL" tmp/rpmlint-*.txt report.txt "$RES"
+tar cjf "$RES.tar.bz2" "$RES"
+mv "$RES.tar.bz2" "$ORIGDIR/"
+echo "Raw extracted data : $ORIGDIR/$RES.tar.bz2"
 cd "$ORIGDIR"
-rm -fr "$TMPDIR"
+#rm -fr "$TMPDIR"
 echo "♻"
