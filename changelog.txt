@@ -1,3 +1,5 @@
+     - Remove debug output to stderr: it works and is convenient but rpmlint
+       files it as an error, confusing packagers.
 1.22 - Add a quick & dirty script to audit font packaging in a repository
      - Fix %_font_pkg macro not to eat the following end of line in the spec
 1.21 - Split naming computation in a separate %_font_pkg_name macro and

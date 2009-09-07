@@ -74,8 +74,6 @@ print(meld(meld(pkgname,fontname),subname) .. "-fonts")
 
 %_font_pkg(n:f:) \
 %define spn %_font_pkg_name %{-n:%{-n*}} \
-%{echo:Generating content for font package: %{spn} \
-}\
 %post -n %{spn} \
 if [ -x %{_bindir}/fc-cache ]; then \
     %{_bindir}/fc-cache %{_fontdir} || : \
