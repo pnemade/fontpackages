@@ -1,0 +1,75 @@
+▶ Documentation for remapping-font-template.conf
+
+This advanced template makes it possible to remap bad font metadata to correct
+values at the fontconfig level. It is composed of four rules:
+— the first one (the actual remapping block) detects fonts that declare
+  [problemfontname],[problemfontstyle] and remaps them to
+  [correctedfontname],[correctedfontstyle].
+— the second one is similar to our substitution rule, and is used to alias
+  [problemfontname],[problemfontstyle] to
+  [correctedfontname],[correctedfontstyle]. This is necessary to avoid breaking
+  documents that reference the broken font naming hidden by the previous rule.
+— the third one tells fontconfig it can use the font named [correctedfontname]
+  when an application asks for the generic family [genericname].
+— the fourth one tells fontconfig it can complete the font named
+  [correctedfontname] with glyphs taken from fonts registered under
+  [genericname].
+
+If the problem font includes more than one style, you will have to repeat the
+two first blocks for each [problemfontname],[problemfontstyle] couple needing
+fixing. The two last rules are similar to what we do in all our other
+patterns.
+
+This kind of remapping is necessary because there were few conventions for font
+naming for a long time, and some font creators put random garbage in there
+(also some fonts were converted from older legacy formats while keeping
+the metadata limitations of those formats, and some authors even released fonts
+with plain typos in their metadata). Now that the two main companies behind the
+OpenType spec, Adobe and Microsoft, specified strict conventions (to help
+applications make sense of available fonts), all those font files need to be
+fixed.
+
+Such problems should always be reported upstream first.
+
+Unfortunately, upstream can take a long time to act, and meanwhile the problem
+metadata will appear in font lists and confuse applications. Since fixing font
+files downstream is unpalatable when they are not released as fontforge SFD
+files (otherwise, just patch the sfds and re-generate), using fontconfig to
+hide the breakage is very convenient.
+
+If you have different needs, take a look at the other templates.
+
+Please replace [problemfontname], [problemfontstyle], [correctedfontname],
+[correctedfontstyle], [genericname], with the
+appropriate values in the following blocks of instructions.
+
+A [correctedfontname] example would be:
+DejaVu Sans
+It's the name under which the font appears in GUI font drop-downs.
+
+[correctedfontname] and [correctedfontstyle] values should aim to conform
+strictly to the rules defined by Microsoft in its WWS fonts white-paper:
+http://blogs.msdn.com/text/attachment/2249036.ashx
+
+Adobe published an introduction to the WWS logic here:
+http://blogs.adobe.com/typblography/typotechnica2007/Font%20names.pdf
+
+Fontconfig generics ([genericname]) currently include:
+— sans-serif
+— serif
+— monospace
+— fantasy
+– cursive
+
+Processing the resulting file through xmllint with the "format" flag is usually
+a good idea.
+$ xmllint --format -o [XX]-[fontname].conf [yourfile]
+The output file will be named:
+[XX]-[fontname].conf
+where [XX] should be a two-digit number corresponding to the font priority in
+fontconfig.
+
+For more information, see:
+http://fedoraproject.org/wiki/Fontconfig_packaging_tips
+
+© 2009 Nicolas Mailhot <nim at fedoraproject dot org>

@@ -1,3 +1,6 @@
+Git
+     - add a template to remap fonts with broken metadata naming to corrected
+       values
      - use canonical dtd declaration in templates, need to declare the dtd in
        the system catalog for it to be useful (ie tweak the fontconfig
        package)
