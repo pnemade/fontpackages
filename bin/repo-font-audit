@@ -464,7 +464,9 @@ naming convention. \n\
 applications use “Family” and “Face” separately this test considers “Face” \
 alone. We also reject weight abbreviations and suffixes, if a font uses them \
 check compliance manually.) \n\
-If your font is listed here please ask its upstream to fix its naming." \
+If your font is listed here please ask its upstream to fix its naming, and in \
+the meanwhile add a fontconfig rule to your package to hide the breakage (see \
+the remapping template)." \
 | pretty_indent
 
 # Duplication checks
