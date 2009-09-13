@@ -1,4 +1,6 @@
 Git
+     - add an index file in the fontconfig directory, since it is getting
+       crowded
      - add a template to merge several font families into one
      - add a template to remap fonts with broken metadata naming to corrected
        values

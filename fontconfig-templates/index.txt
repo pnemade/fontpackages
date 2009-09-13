@@ -1,0 +1,34 @@
+Contents
+
+1. Generic fontconfig documentation
+
+— fontconfig-priorities.txt
+  Conventions used to name and order fontconfig files
+— fontconfig-generics.txt
+  “Fake” synthetic font families used by fontconfig, and how to choose the
+  correct one to register your font in
+
+2. Fontconfig templates
+
+Each use-case is illustrated by an XML template and the companion explanation
+text file:
+— basic-font-template.txt and basic-font-template.conf
+  A no-frills template sufficient for most fonts
+— substitution-font-template.txt and substitution-font-template.conf
+  When you know your font is a good replacement for another font, and want the
+  system to use your font when an application asks for this other font, and it
+  is not available
+— l10n-font-template.txt and l10n-font-template.conf
+  When you need to increase the priority of your font, but only when writing
+  text for a particular locale
+— rescaling-font-template.txt and rescaling-font-template.conf
+  When the font author made a scaling error, and the font appears too small or
+  too big compared to other fonts at the same settings
+— remapping-font-template.txt and remapping-font-template.conf
+  When the font name or style declared by a font file does not respect
+  conventions, and confuses applications or annoys users
+— merging-font-template.txt and merging-font-template.conf
+  When you need to make several font families appear as a single one,
+  simplifying font management for users.
+
+© 2009 Nicolas Mailhot <nim at fedoraproject dot org>
