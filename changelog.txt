@@ -1,3 +1,6 @@
+     - use canonical dtd declaration in templates, need to declare the dtd in
+       the system catalog for it to be useful (ie tweak the fontconfig
+       package)
      - Remove debug output to stderr: it works and is convenient but rpmlint
        files it as an error, confusing packagers.
 1.22 - Add a quick & dirty script to audit font packaging in a repository
