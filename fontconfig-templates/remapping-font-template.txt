@@ -69,7 +69,4 @@ The output file will be named:
 where [XX] should be a two-digit number corresponding to the font priority in
 fontconfig.
 
-For more information, see:
-http://fedoraproject.org/wiki/Fontconfig_packaging_tips
-
 © 2009 Nicolas Mailhot <nim at fedoraproject dot org>
