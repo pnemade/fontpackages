@@ -1,5 +1,8 @@
 Fontconfig configuration file ordering
 
+Fontconfig parses files in /etc/fonts/conf.d/ by filename order. The following
+conventions are used to attibute the appropriate prefix to new files:
+
 ┌────────┬────────────────────────────────────────────────────────────────────┐
 │ Prefix │ Description                                                        │
 ├────────┼────────────────────────────────────────────────────────────────────┤
