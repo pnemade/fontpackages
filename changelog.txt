@@ -1,4 +1,5 @@
 Git
+     - add a template to merge several font families into one
      - add a template to remap fonts with broken metadata naming to corrected
        values
      - use canonical dtd declaration in templates, need to declare the dtd in

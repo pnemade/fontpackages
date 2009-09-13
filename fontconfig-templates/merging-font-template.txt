@@ -1,0 +1,66 @@
+▶ Documentation for merging-font-template.conf
+
+This advanced template makes it possible to merge several overlapping font
+families and make them appear as one (the target font family) to applications.
+It is composed of five rules:
+— the first one changes the version of the target [fontname] family to an
+  arbitrary high value (here 2).
+– the second one remaps the name of the font family we want to merge with it
+  ([mergedfontname]) to the target, and assigns it a lower number (here 1).
+  Therefore fontconfig will always try to resolve a request using [fontname]
+  files first, and only use [mergedfontname] files if [fontname] files are not
+  sufficient.
+— the third one is similar to our substitution rule, and is used to alias back
+  [mergedfontname] to [fontname]. This is necessary to avoid breaking
+  documents that reference [mergedfontname] since it is now hidden by the
+  previous rule.
+— the fourth one tells fontconfig it can use the font named [fontname] when an
+  application asks for the generic family [genericname].
+— the fifth one tells fontconfig it can complete the font named [fontname] with
+  glyphs taken from fonts registered under [genericname].
+
+It is possible to merge more than one family, you will only have to repeat the
+second and third rules as many times as necessary. Be careful however to
+strictly order the font versions to make sure fontconfig uses the right
+priorities within the target font family.
+
+The typical use-case are font families released as several font sets, one of
+which being of good quality but of limited Unicode coverage, and the others
+providing wider coverage at the expense of quality or variety of styles.
+Famous examples are “Arial” vs “Arial Unicode”, “Droid Sans” vs “Droid Sans
+Fallback” or “Droid Sans Japanese”. Another use-case are fonts in legacy
+formats: because those formats limited greatly the number of glyphs that could
+be put in a single file, it was common to split a logical font family in
+several encoding-specific files (of course in that case it would be better if
+someone just merged the files in a single OpenType font).
+
+If you have different needs, take a look at the other templates. For example
+changing the naming of a font without merging it with another is better done
+using the remapping template.
+
+Please replace [fontname], [mergedfontname], [genericname], with the
+appropriate values in the following blocks of instructions.
+
+A [fontname] example would be:
+DejaVu Sans
+It's the name under which the font appears in GUI font drop-downs.
+
+Fontconfig generics ([genericname]) currently include:
+— sans-serif
+— serif
+— monospace
+— fantasy
+– cursive
+
+Processing the resulting file through xmllint with the "format" flag is usually
+a good idea.
+$ xmllint --format -o [XX]-[fontname].conf [yourfile]
+The output file will be named:
+[XX]-[fontname].conf
+where [XX] should be a two-digit number corresponding to the font priority in
+fontconfig.
+
+For more information, see:
+http://fedoraproject.org/wiki/Fontconfig_packaging_tips
+
+© 2009 Nicolas Mailhot <nim at fedoraproject dot org>
