@@ -4,11 +4,14 @@ This advanced template makes it possible to remap bad font metadata to correct
 values at the fontconfig level. It is composed of four rules:
 — the first one (the actual remapping block) detects fonts that declare
   [problemfontname],[problemfontstyle] and remaps them to
-  [correctedfontname],[correctedfontstyle].
+  [correctedfontname],[correctedfontstyle]. You can remap other attributes, use
+  fc-query to see what a font file declares and fc-scan to check how you
+  corrected it.
 — the second one is similar to our substitution rule, and is used to alias
-  [problemfontname],[problemfontstyle] to
-  [correctedfontname],[correctedfontstyle]. This is necessary to avoid breaking
-  documents that reference the broken font naming hidden by the previous rule.
+  [problemfontname] to [correctedfontstyle]. This is necessary to avoid
+  breaking documents that reference the broken font naming hidden by the
+  previous rule. (it does not take the style into account because
+  unfortunately fontconfig can not handle it right now)
 — the third one tells fontconfig it can use the font named [correctedfontname]
   when an application asks for the generic family [genericname].
 — the fourth one tells fontconfig it can complete the font named

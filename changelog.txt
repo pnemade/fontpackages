@@ -1,3 +1,6 @@
+Git
+     - remove use of style in remapping reverse aliasing, since fontconfig
+       does not like it
 1.23
      - add an index file in the fontconfig directory, since it is getting
        crowded
