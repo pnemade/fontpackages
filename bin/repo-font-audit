@@ -391,6 +391,7 @@ echo -n "— fonts that declare face attributes in family names:  "
 
 #FIXME This test could probably be rewritten to be much faster
 rm -f tmp/tmp.csv
+touch tmp/tmp.csv
 awk -F "|" '{ print $10 }' "$FL" | sort | uniq \
   | while read family ; do
     echo -ne "\b?"
@@ -447,6 +448,7 @@ echo -n "— fonts that declare non-WWS compliant faces:  "
 #      fontconfig files shipped in the package, but this requires fixes in
 #      fc-scan (ability to process non-deployed fontconfig files)
 rm -f tmp/tmp.csv
+touch tmp/tmp.csv
 awk -F "|" '{ print $11 }' "$FL" | sort | uniq \
   | while read face ; do
     echo -ne "\b○"
