@@ -1,4 +1,5 @@
 Git
+     - make repo-font-audit generate tar.xz archives
      - make some repo-font-audit tests succeed even if there are no matches
      - make repo-font-audit work on local (file://) repositories
      - make repo-font-audit WWS checking more accurate, improve its output

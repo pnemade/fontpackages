@@ -722,9 +722,10 @@ analyse | tee report.txt
 
 mkdir "$RES"
 cp "$FL" tmp/rpmlint-*.txt report.txt "$RES"
-tar cjf "$RES.tar.bz2" "$RES"
-mv "$RES.tar.bz2" "$ORIGDIR/"
-echo "Raw extracted data : $ORIGDIR/$RES.tar.bz2"
+tar cf "$RES.tar" "$RES"
+xz -9 "$RES.tar"
+mv "$RES.tar.xz" "$ORIGDIR/"
+echo "Complete extracted data: $ORIGDIR/$RES.tar.xz"
 cd "$ORIGDIR"
 #rm -fr "$TMPDIR"
 echo "♻"
