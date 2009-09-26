@@ -1,4 +1,6 @@
 Git
+     - make repo-font-audit also output the main csv file separately to make
+       it easy to attach it to mail reports
      - make repo-font-audit generate tar.xz archives
      - make some repo-font-audit tests succeed even if there are no matches
      - make repo-font-audit work on local (file://) repositories
