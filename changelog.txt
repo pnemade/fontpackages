@@ -1,4 +1,5 @@
 Git
+     - make repo-font-audit less chatty when no problems are detected
      - remove use of style in remapping reverse aliasing, since fontconfig
        does not like it
 1.23

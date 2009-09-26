@@ -71,9 +71,13 @@ echo "$t_file|$t_rpm|$t_srpm|$t_file_size|$t_rpm_size"
 
 summary() {
 
-tally "$1" | awk -F '|' '{ print "⇒ " $1 " files (" $4 " MiB) in " $2 \
-      " packages (" $5 " MiB) generated from " $3 " source packages." }' \
-      | pretty_indent
+if [ $(cat "$1" | wc -l) -gt 0 ] ; then
+  tally "$1" | awk -F '|' '{ print "⇒ " $1 " files (" $4 " MiB) in " $2 \
+        " packages (" $5 " MiB) generated from " $3 " source packages." }' \
+        | pretty_indent
+else
+  echo "⇒  None!" | pretty_indent
+fi
 }
 
 substats() {
@@ -93,22 +97,26 @@ s_datafile="$1"
 
 summary "$s_datafile"
 
-(
-echo "Format|Files|rpm|srpm|Files (MiB)|rpm (MiB)"
-awk -F '|' '$12 != "" { print $0 "|" $12 }' "$s_datafile" > tmp.s.csv
-substats tmp.s.csv) | column -t -s '|' | pretty_indent
+if [ $(cat "$s_datafile" | wc -l) -gt 0 ] ; then
+  (echo "Format|Files|rpm|srpm|Files (MiB)|rpm (MiB)"
+  awk -F '|' '$12 != "" { print $0 "|" $12 }' "$s_datafile" > tmp.s.csv
+  substats tmp.s.csv) | column -t -s '|' | pretty_indent
 
-(echo "Format|Files|rpm|srpm|Files (MiB)|rpm (MiB)"
-awk -F '|' '{ print $0 "|" $4 }' "$s_datafile" > tmp.s.csv
-substats tmp.s.csv)| column -t -s '|' | pretty_indent
+  (echo "Format|Files|rpm|srpm|Files (MiB)|rpm (MiB)"
+  awk -F '|' '{ print $0 "|" $4 }' "$s_datafile" > tmp.s.csv
+  substats tmp.s.csv)| column -t -s '|' | pretty_indent
 
-rm tmp.s.csv
+  rm tmp.s.csv
+fi
 }
 
 list-rpm() {
-awk -F '|' '{ if ( $6 == "M" ) print "[" $2 "]" ; \
-                          else print     $2     }' "$1" | sort | uniq \
-  | awk -F '|' '{ list = list " " $1 } END { print list }' | pretty_indent
+
+if [ $(cat "$1" | wc -l) -gt 0 ] ; then
+  awk -F '|' '{ if ( $6 == "M" ) print "[" $2 "]" ; \
+                            else print     $2     }' "$1" | sort | uniq \
+    | awk -F '|' '{ list = list " " $1 } END { print list }' | pretty_indent
+fi
 }
 
 wws_resolve () {
@@ -122,7 +130,6 @@ for token in $2 ; do
 done
 echo "$result"
 }
-
 
 collect() {
 echo "Searching for packages with font metadata…"
@@ -288,6 +295,7 @@ echo ""
 awk -F '|' '($6 != "M") && ($13 != "Link")' "$FL" > tmp/tmp.csv
 stats tmp/tmp.csv
 
+[ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
 echo "☛ Bad packaging may result in arched packages or mixed content." \
 | pretty_indent
 
@@ -301,6 +309,7 @@ echo "– font files in arch packages:"
 
 awk -F '|' '($13 != "Link") && ($4 != "noarch")' "$FL" > tmp/tmp.csv
 
+[ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
 awk -F '|' '{ print $2 "." $4 "|" $6 }' tmp/tmp.csv | sort | uniq \
   | awk -F '|' '{ if ( $2 == "M" ) list=(list " [" $1 "]") ;
                               else list=(list " "  $1    ) } END \
@@ -318,6 +327,7 @@ list-rpm tmp/tmp.csv
 
 summary tmp/tmp.csv
 
+[ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
 echo "☛ Font files need to be installed under the /usr/share/fonts root for \
 fontconfig to expose them." | pretty_indent
 
@@ -331,6 +341,7 @@ list-rpm tmp/tmp.csv
 
 summary tmp/tmp.csv
 
+[ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
 echo "☛ Every font should be installable as-is without pulling in other \
 material." | pretty_indent
 
@@ -344,6 +355,7 @@ list-rpm tmp/tmp.csv
 
 summary tmp/tmp.csv
 
+[ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
 echo "☛ Automatic font installation relies on this metadata being present \
 to work." | pretty_indent
 
@@ -403,6 +415,7 @@ awk -F "|" '{ print $10 }' tmp/tmp.csv | sort | uniq \
 
 summary tmp/tmp.csv
 
+[ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
 echo -e "☛ To be properly processed by applications face qualifiers need to \
 be declared in face names (there may be a few false positives here as some \
 common face qualifiers can be used with a different meaning in family names; \
@@ -446,6 +459,7 @@ awk -F "|" '{ print $11 }' "$FL" | sort | uniq \
   done
 echo ""
 
+[ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
 awk -F "|" '{ print $10 ", " $11 }' tmp/tmp.csv | sort | uniq \
   | while read fontface ; do
     rpmlist=$(awk -F "|" -v fontface="$fontface" '($10 ", " $11) == fontface \
@@ -457,6 +471,7 @@ awk -F "|" '{ print $10 ", " $11 }' tmp/tmp.csv | sort | uniq \
 
 summary tmp/tmp.csv
 
+[ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
 echo -e "☛ This WWS-like test checks if font faces use the: \n\
 “weight width slant [regular]” \n\
 naming convention. \n\
@@ -466,8 +481,7 @@ alone. We also reject weight abbreviations and suffixes, if a font uses them \
 check compliance manually.) \n\
 If your font is listed here please ask its upstream to fix its naming, and in \
 the meanwhile add a fontconfig rule to your package to hide the breakage (see \
-the remapping template)." \
-| pretty_indent
+the remapping template)." | pretty_indent
 
 # Duplication checks
 
@@ -494,6 +508,7 @@ echo "☛ Excluding multilib and PCF fonts (because they are pretty much \
 hopeless)." | pretty_indent
 
 rm -f tmp/tmp.csv
+touch tmp/tmp.csv
 awk -F '|' '($10 != "") && ($11 != "") && ($12 != "PCF") && ($12 != "Type 1") \
     { print $2 "-" $3 "." $4 "|" $10 "|" $11 }' "$FLNM" \
     | sort | uniq | awk -F '|' '{ print $2 "|" $3 }' \
@@ -511,6 +526,7 @@ awk -F '|' '($10 != "") && ($11 != "") && ($12 != "PCF") && ($12 != "Type 1") \
 
 summary tmp/tmp.csv
 
+[ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
 echo "☛ Face duplication wastes resources \
 infrastructure and user side. Very often an upstream that copied some fonts \
 will forget to keep them up to date, and the duplication will result in the \
@@ -536,6 +552,7 @@ awk -F '|' '{ print $2 "|" $10 "|" $11 "|" $9 }' tmp/tmp.csv \
 
 summary tmp/tmp.csv
 
+[ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
 echo "☛ Face duplication within a package is almost certainly a bug, except \
 for special symbol font families." | pretty_indent
 
@@ -552,6 +569,7 @@ awk -F '|' '{ print $2 "-" $3 "." $4 }' tmp/tmp.csv | sort | uniq \
   done | sort -nr | awk '{ list = list " " $2 " (" $1 ")" } END \
                          { print list }' | pretty_indent
 
+[ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
 echo "☛ Reliable font autoinstallation requires shipping only one font family \
 per font package. This indicates problems in the packaging or the packaged \
 font metadata." | pretty_indent
@@ -566,6 +584,7 @@ list-rpm tmp/tmp.csv
 
 summary tmp/tmp.csv
 
+if [ $(cat tmp/tmp.csv | wc -l) -gt 0 ] ; then
 echo "    5 most symlinked packages:"
 awk -F '|' '$13=="Link" { print $17 "|" $2 "-" $3 "." $4 }' "$FL" | sort | uniq \
 | awk -F '|' '{ print $1 }' | uniq -c | sort -nr | head -5 | column -t | pretty_indent
@@ -575,6 +594,7 @@ packages to comply with guidelines and avoid duplicating files, but it is \
 also a symptom of missing or incomplete fontconfig support in the package. \
 Please ask upstream to use fontconfig (possibly, via a higher-level library \
 such as pangocairo)." | pretty_indent
+fi
 
 echo "– broken symlinks to font files:"
 
@@ -599,6 +619,7 @@ echo "– packages with font files not identified as such by libmagic:"
 
 awk -F '|' '($13 !~ /font/) && ($13 !~ /Font/) && ($13 != "Link")' "$FL" > tmp/tmp.csv
 
+[ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
 awk -F '|' '{ print $2 "-" $3 "." $4 }' tmp/tmp.csv | uniq \
   | while read rpm ; do
     awk -F '|' -v rpm="$rpm" '($2 "-" $3 "." $4) == rpm \
@@ -608,6 +629,7 @@ awk -F '|' '{ print $2 "-" $3 "." $4 }' tmp/tmp.csv | uniq \
 
 summary tmp/tmp.csv
 
+[ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
 echo "☛ Either libmagic has a bug or the files are malformed and need to be \
 fixed or dumped." | pretty_indent
 
@@ -615,6 +637,7 @@ echo "– packages with font files fc-query can not parse:"
 
 awk -F '|' '($13 != "Link") && ($12 == "")' "$FL" > tmp/tmp.csv
 
+[ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
 awk -F '|' '{ print $2 "-" $3 "." $4 }' tmp/tmp.csv | uniq \
   | while read rpm ; do
     awk -F '|' -v rpm="$rpm" '($2 "-" $3 "." $4) == rpm \
@@ -624,17 +647,21 @@ awk -F '|' '{ print $2 "-" $3 "." $4 }' tmp/tmp.csv | uniq \
 
 summary tmp/tmp.csv
 
+[ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
 echo "☛ Either fontconfig has a bug or the files are malformed and need to be \
 fixed or dumped." | pretty_indent
 
 echo "– packages with localized metadata but no English variant:"
 
 awk -F '|' '($12 != "") && (($10 == "") || ($11 == ""))' "$FL" > tmp/tmp.csv
+
+[ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
 awk -F '|' '{ print $9 "|" $2 "-" $3 "." $4 }' tmp/tmp.csv \
   | column -t -s '|' | pretty_indent
 
 summary tmp/tmp.csv
 
+[ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
 echo "☛ The font files need to be fixed to declare metadata in English too." \
 | pretty_indent
 
