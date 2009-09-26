@@ -119,15 +119,27 @@ if [ $(cat "$1" | wc -l) -gt 0 ] ; then
 fi
 }
 
+canonalise_and_invert_string() {
+  cais=""
+  for token in $(echo "$@" | sed "s=[ \t_\.-]\+= =g" | sed "s=^ ==g" \
+                           | sed "s= $==g") ; do
+      cais="$token $cais"
+  done
+  echo " $cais"
+}
+
 wws_resolve () {
-result="$1"
-for token in $2 ; do
-   token=$(echo "$token" | sed "s+_+ +g")
-   tmp=$(echo "$1" | sed "s=^$token$==gi")
-   [ "$tmp" != "$1" ] && result="$tmp"
-   tmp=$(echo "$1" | sed "s= $token$==gi")
-   [ "$tmp" != "$1" ] && result="$tmp"
+cais_name=$(canonalise_and_invert_string $1)
+result="$cais_name"
+patterns=""
+for pattern in $2 ; do patterns="$pattern $patterns" ; done
+for pattern in $patterns ; do
+   pattern=$(canonalise_and_invert_string $pattern)
+   tmp=$(echo "$cais_name" | sed "s=$pattern= =i")
+   [ "$tmp" != "$cais_name" ] && result="$tmp"
 done
+result=$(canonalise_and_invert_string "$result" \
+         | sed "s=^ ==" | sed "s= $==")
 echo "$result"
 }
 
@@ -422,16 +434,20 @@ common face qualifiers can be used with a different meaning in family names; \
 if that's not the case, please ask the font upstream to fix its naming)." \
 | pretty_indent
 
-echo -n "— fonts that declare non-WWS compliant faces: "
+echo -n "— fonts that declare non-WWS compliant faces:  "
 
+#FIXME It would also be great to check if the naming is corrected by the
+#      fontconfig files shipped in the package, but this requires fixes in
+#      fc-scan (ability to process non-deployed fontconfig files)
 rm -f tmp/tmp.csv
 awk -F "|" '{ print $11 }' "$FL" | sort | uniq \
   | while read face ; do
-    rface=$(echo "$face" | sed "s=[ \t_\.-]\+= =g" | sed "s=^ ==g" \
-                         | sed "s= $==g")
-    rface=$(wws_resolve "$rface" "Book Normal Regular Roman Upright")
+    echo -ne "\b○"
+    rface=$(wws_resolve "$face" "Book Normal Regular Roman Upright")
+    echo -ne "\b◔"
     rface=$(wws_resolve "$rface" "ita ital italic cursive kursiv inclined \
                                   oblique backslanted backslant slanted")
+    echo -ne "\b◑"
     rface=$(wws_resolve "$rface" "extra_compressed ext_compressed \
                                   ultra_compressed ultra_condensed \
                                   ultra_cond UltraCondensed compressed \
@@ -444,6 +460,7 @@ awk -F "|" '{ print $11 }' "$FL" | sort | uniq \
                                   ultra_expanded ultra_extended \
                                   UltraExpanded condensed cond expanded \
                                   extended")
+    echo -ne "\b◕"
     rface=$(wws_resolve "$rface" "extra_thin ext_thin ultra_thin Thin \
                                   extra_light ext_light ultra_light \
                                   ExtraLight semi_bold demi_bold DemiBold \
@@ -453,8 +470,8 @@ awk -F "|" '{ print $11 }' "$FL" | sort | uniq \
                                   nord demi ultra")
     if [ "$rface" != "" ] ; then
       awk -F "|" -v face="$face" '$11 == face' "$FL" >> tmp/tmp.csv
-      echo -n "x"
-    else echo -n "."
+      echo -ne "\bx "
+    else echo -ne "\b●"
     fi
   done
 echo ""
@@ -462,19 +479,19 @@ echo ""
 [ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
 awk -F "|" '{ print $10 ", " $11 }' tmp/tmp.csv | sort | uniq \
   | while read fontface ; do
-    rpmlist=$(awk -F "|" -v fontface="$fontface" '($10 ", " $11) == fontface \
-      { if ( $6 == "M" ) print "[" $2 "]" ; \
-                    else print     $2     }' tmp/tmp.csv \
-      | sort | uniq | while read rpm ; do echo -n "$rpm " ; done)
-    echo "$fontface|$rpmlist"
+    awk -F "|" -v fontface="$fontface" '($10 ", " $11) == fontface \
+      { if ( $6 == "M" ) print fontface "|" $9 "|[" $2 "]" ; \
+                    else print fontface "|" $9 "|"  $2     }' tmp/tmp.csv \
+      | sort | uniq
   done | column -t -s '|' | pretty_indent
 
 summary tmp/tmp.csv
 
 [ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
 echo -e "☛ This WWS-like test checks if font faces use the: \n\
-“weight width slant [regular]” \n\
+“width weight slant” \n\
 naming convention. \n\
+http://blogs.msdn.com/text/attachment/2249036.ashx \n\
 (Microsoft resolves over a combined “Family Face” string, since our \
 applications use “Family” and “Face” separately this test considers “Face” \
 alone. We also reject weight abbreviations and suffixes, if a font uses them \
