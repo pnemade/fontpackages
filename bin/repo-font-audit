@@ -387,14 +387,16 @@ list-rpm tmp/tmp.csv
 
 summary tmp/tmp.csv
 
-echo -n "— fonts that declare face attributes in family names: "
+echo -n "— fonts that declare face attributes in family names:  "
 
+#FIXME This test could probably be rewritten to be much faster
 rm -f tmp/tmp.csv
 awk -F "|" '{ print $10 }' "$FL" | sort | uniq \
   | while read family ; do
-    rfamily=$(echo "$family" | sed "s=[ \t_\.-]\+= =g" | sed "s=^ ==g" \
-                             | sed "s= $==g")
-    badnaming=0 
+    echo -ne "\b?"
+    rfamily=$(echo "$family" | sed "s=[ \t_\.-]\+= =g" | sed "s=^= =g" \
+                             | sed "s=$= =g")
+    badnaming=0
     for token in Book Normal Regular Upright ita ital italic cursive \
                  kursiv inclined oblique backslanted backslant slanted \
                  extra_compressed ext_compressed ultra_compressed \
@@ -410,14 +412,13 @@ awk -F "|" '{ print $10 }' "$FL" | sort | uniq \
                  ExtraBold extra_black ext_black ultra_black ExtraBlack bold \
                  light medium black heavy nord demi ultra ; do
       token=$(echo "$token" | sed "s+_+ +g")
-      nface=$(echo " $rfamily " | sed "s= $token ==gi" \
-                                | sed "s=^ ==g" | sed "s= $==g")
-      [ "$nface" != "$rfamily" ] && badnaming=$((badnaming+1))
+      $(echo "$rfamily" | grep -q -e " $token ") && badnaming=$((badnaming+1))
     done
     if [ $badnaming -gt 0 ] ; then
       awk -F "|" -v family="$family" '$10 == family' "$FL" >> tmp/tmp.csv
-      echo -n "x"
-    else echo -n "."
+      echo -ne "\bx "
+    else
+      echo -ne "\b-"
     fi
   done
 echo ""
