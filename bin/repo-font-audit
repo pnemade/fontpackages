@@ -166,10 +166,16 @@ cat ../$FPL ../$PWFL | awk -F '|' '{ print $2 "-" $3 "." $4 }' | sort | uniq \
   mkdir "$rpm"
   cd "$rpm"
   echo -n " ◔"
-  wget --quiet -O "$rpm.rpm" $(repoquery --repofrompath=$REPOID,$REPOURL --repoid=$REPOID --location "$rpm" 2>/dev/null)
+  rpm_loc=$(repoquery --repofrompath=$REPOID,$REPOURL --repoid=$REPOID --location "$rpm" 2>/dev/null)
+  if $(echo "$rpm_loc" | grep -q -e "^file://") ; then
+    rpm_file=$(echo "$rpm_loc" | sed "s=^file://=/=")
+  else
+    wget --quiet -O "$rpm.rpm" "$rpm_loc"
+    rpm_file="$rpm.rpm"
+  fi
   echo -ne "\b◑"
-  rpmlint_score=$(rpmlint "$rpm.rpm" > "../rpmlint-$rpm.txt" 2>&1 ; echo $?)
-  rpm2cpio "$rpm.rpm" > "$rpm.cpio"
+  rpmlint_score=$(rpmlint "$rpm_file" > "../rpmlint-$rpm.txt" 2>&1 ; echo $?)
+  rpm2cpio "$rpm_file" > "$rpm.cpio"
   echo -ne "\b◕"
   cpio --quiet -it < "$rpm.cpio" > "$rpm.lst"
   nofont_score=$(cat "$rpm.lst" \
