@@ -1,4 +1,4 @@
-Git
+1.26
      - repo-font-audit: fix face-in-family check
      - repo-font-audit: small fixes
 1.25
