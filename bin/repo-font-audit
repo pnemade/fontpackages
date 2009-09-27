@@ -144,9 +144,9 @@ ss_datafile="$1"
 awk -F '|' '{ print $NF }' "$ss_datafile" | sort | uniq \
   | while read key ; do
     echo -n "$key|"
-    awk -F '|' -v key="$key" '$NF==key' "$ss_datafile" > tmp.ss.csv
-    tally tmp.ss.csv
-    rm tmp.ss.csv
+    awk -F '|' -v key="$key" '$NF==key' "$ss_datafile" > tmp/tmp.ss.csv
+    tally tmp/tmp.ss.csv
+    rm tmp/tmp.ss.csv
   done
 }
 
@@ -157,14 +157,14 @@ summary "$s_datafile"
 
 if [ $(cat "$s_datafile" | wc -l) -gt 0 ] ; then
   (echo "Format|Files|rpm|srpm|Files (MiB)|rpm (MiB)"
-  awk -F '|' '$12 != "" { print $0 "|" $12 }' "$s_datafile" > tmp.s.csv
-  substats tmp.s.csv) | column -t -s '|' | pretty_indent
+  awk -F '|' '$12 != "" { print $0 "|" $12 }' "$s_datafile" > tmp/tmp.s.csv
+  substats tmp/tmp.s.csv) | column -t -s '|' | pretty_indent
 
   (echo "Format|Files|rpm|srpm|Files (MiB)|rpm (MiB)"
-  awk -F '|' '{ print $0 "|" $4 }' "$s_datafile" > tmp.s.csv
-  substats tmp.s.csv)| column -t -s '|' | pretty_indent
+  awk -F '|' '{ print $0 "|" $4 }' "$s_datafile" > tmp/tmp.s.csv
+  substats tmp/tmp.s.csv)| column -t -s '|' | pretty_indent
 
-  rm tmp.s.csv
+  rm tmp/tmp.s.csv
 fi
 }
 
@@ -225,7 +225,7 @@ fi
 echo "Inspecting packages:"
 rm -f "$FFL"
 cd "tmp"
-cat ../$FPL ../$PWFL | awk -F '|' '{ print $2 "-" $3 "." $4 }' | sort | uniq \
+cat "../$FPL" "../$PWFL" | awk -F '|' '{ print $2 "-" $3 "." $4 }' | sort | uniq \
   | while read rpm ; do
   echo -n " – $rpm"
   mkdir "$rpm"
@@ -461,7 +461,7 @@ rm -f tmp/tmp.csv
 touch tmp/tmp.csv
 awk -F "|" '{ print $10 }' "$FL" | sort | uniq \
   | while read family ; do
-    echo -ne "\b?"
+    echo -ne "\b…"
     rfamily=$(echo "$family" | sed "s=[ \t_\.-]\+= =g" | sed "s=^= =g" \
                              | sed "s=$= =g")
     badnaming=0
