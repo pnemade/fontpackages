@@ -7,11 +7,13 @@
 
 usage() {
 /bin/cat >&2 << EOF_USAGE
-Usage: $0 ID URL1
+Usage: $0 <id> <location>
+<id>:       identifier of the package repository to check
+<location>: location of the package repository to check
 
-With:
-— ID:   identifier of the package repository to test
-— URL1: url of the package repository to test
+Examples:
+$0 tmp file:///tmp/rpm
+$0 rawhide http://example.com/mirrors/fedora.redhat.com/fedora/linux/development/x86_64/os/
 
 EOF_USAGE
 exit 1
@@ -70,10 +72,9 @@ echo "$t_file|$t_rpm|$t_srpm|$t_file_size|$t_rpm_size"
 }
 
 summary() {
-
 if [ $(cat "$1" | wc -l) -gt 0 ] ; then
-  tally "$1" | awk -F '|' '{ print "⇒ " $1 " files (" $4 " MiB) in " $2 \
-        " packages (" $5 " MiB) generated from " $3 " source packages." }' \
+  tally "$1" | awk -F '|' '{ print "⇒ " $1 " file(s) (" $4 " MiB) in " $2 \
+        " package(s) (" $5 " MiB) generated from " $3 " source package(s)." }' \
         | pretty_indent
 else
   echo "⇒  None!" | pretty_indent
@@ -147,15 +148,22 @@ collect() {
 echo "Searching for packages with font metadata…"
 repoquery --repofrompath=$REPOID,$REPOURL --repoid=$REPOID \
           --qf "%{sourcerpm}|%{name}|%{epoch}:%{version}-%{release}|%{arch}|%{packagesize}" \
-          --whatprovides "font(*)" 2>/dev/null | sort | uniq \
-          > "$FPL"
+          --whatprovides "font(*)" --quiet \
+          | sed 's=^\([^|]\+\?\)\-\([^-|]\+\?\)\-\([^-|]\+\?\)|=\1|=g' \
+          | sort | uniq > "$FPL"
 
 echo "Searching for packages that include files with common font extensions…"
 repoquery --repofrompath=$REPOID,$REPOURL --repoid=$REPOID \
           --qf "%{sourcerpm}|%{name}|%{epoch}:%{version}-%{release}|%{arch}|%{packagesize}" \
           -f '*.ttf' -f '*.otf' -f '*.ttc' \
-          -f '*.pfb' -f '*.pfa' -f '*.pcf.gz' 2>/dev/null | sort | uniq \
-          > "$PWFL"
+          -f '*.pfb' -f '*.pfa' -f '*.pcf.gz' --quiet \
+          | sed 's=^\([^|]\+\?\)\-\([^-|]\+\?\)\-\([^-|]\+\?\)|=\1|=g' \
+          | sort | uniq > "$PWFL"
+
+if [ $(cat "$FPL" "$PWFL" | wc -l) -eq 0 ] ; then
+  echo "Nothing to do!"
+  exit
+fi
 
 echo "Inspecting packages:"
 rm -f "$FFL"
@@ -697,10 +705,10 @@ echo "☛ The font files need to be fixed to declare metadata in English too." \
 
 [ "$#" -lt "2" ] && usage
 
-ID=$1
-REPOID="$1-fontrepo"
-REPOURL=$2
 TIMESTAMP=$(date -u +%Y%m%dT%H%M%S)
+ID=$1
+REPOID="$1-rfa-$TIMESTAMP"
+REPOURL=$2
 ORIGDIR="$PWD"
 
 FPL="font-packages.csv"
@@ -731,7 +739,9 @@ mv "$RES.tar.xz" "$ORIGDIR/"
 mv "$FLRES.xz" "$ORIGDIR/"
 echo "1. Complete extracted data: $ORIGDIR/$RES.tar.xz"
 echo "2. CSV summary: $ORIGDIR/$FLRES.xz"
+echo ""
+echo "Generated using the repo-font-audit command from"
+echo "http://fedoraproject.org/wiki/fontpackages"
 cd "$ORIGDIR"
 rm -fr "$TMPDIR"
 echo "♻"
-echo "Generated using repo-font-audit from http://fedoraproject.org/wiki/Fontpackages"
