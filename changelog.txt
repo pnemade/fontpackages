@@ -1,4 +1,5 @@
 Git
+     - repo-font-audit: fix face-in-family check
      - repo-font-audit: small fixes
 1.25
      - repo-font-audit: move general statistics to the end, display test

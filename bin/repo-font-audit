@@ -462,42 +462,35 @@ list-rpm tmp/tmp.csv
 complete_csv_summary "$TSUM" tmp/tmp.csv 5 "Bad rpm naming"
 summary tmp/tmp.csv
 
-echo -n "— fonts that declare face attributes in family names:  "
+echo "— fonts that declare face attributes in family names:"
 
-#FIXME This test could probably be rewritten to be much faster
 rm -f tmp/tmp.csv
 touch tmp/tmp.csv
 awk -F "|" '{ print $10 }' "$FL" | sort | uniq \
   | while read family ; do
-    echo -ne "\b…"
-    rfamily=$(echo "$family" | sed "s=[ \t_\.-]\+= =g" | sed "s=^= =g" \
-                             | sed "s=$= =g")
-    badnaming=0
-    for token in Book Normal Regular Upright ita ital italic cursive \
-                 kursiv inclined oblique backslanted backslant slanted \
-                 extra_compressed ext_compressed ultra_compressed \
-                 ultra_condensed ultra_cond UltraCondensed compressed \
-                 extra_condensed ext_condensed extra_cond ext_cond \
-                 ExtraCondensed narrow compact semi_condensed semi_cond \
-                 SemiCondensed wide semi_expanded semi_extended SemiExpanded \
-                 extra_expanded ext_expanded extra_extended ext_extended \
-                 ExtraExpanded ultra_expanded ultra_extended UltraExpanded \
-                 condensed cond expanded extended extra_thin ext_thin \
-                 ultra_thin Thin extra_light ext_light ultra_light ExtraLight \
-                 semi_bold demi_bold DemiBold extra_bold ext_bold ultra_bold \
-                 ExtraBold extra_black ext_black ultra_black ExtraBlack bold \
-                 light medium black heavy nord demi ultra ; do
-      token=$(echo "$token" | sed "s+_+ +g")
-      $(echo "$rfamily" | grep -q -e " $token ") && badnaming=$((badnaming+1))
-    done
-    if [ $badnaming -gt 0 ] ; then
-      awk -F "|" -v family="$family" '$10 == family' "$FL" >> tmp/tmp.csv
-      echo -ne "\bx "
-    else
-      echo -ne "\b-"
-    fi
-  done
-echo ""
+    echo -n "$family|"
+    echo " $family " | sed "s=[ \t_\.-]\+= =g"
+  done > tmp/tmp1.csv
+for token in Book Normal Regular Upright ita ital italic cursive \
+             kursiv inclined oblique backslanted backslant slanted \
+             extra_compressed ext_compressed ultra_compressed \
+             ultra_condensed ultra_cond UltraCondensed compressed \
+             extra_condensed ext_condensed extra_cond ext_cond \
+             ExtraCondensed narrow compact semi_condensed semi_cond \
+             SemiCondensed wide semi_expanded semi_extended SemiExpanded \
+             extra_expanded ext_expanded extra_extended ext_extended \
+             ExtraExpanded ultra_expanded ultra_extended UltraExpanded \
+             condensed cond expanded extended extra_thin ext_thin \
+             ultra_thin Thin extra_light ext_light ultra_light ExtraLight \
+             semi_bold demi_bold DemiBold extra_bold ext_bold ultra_bold \
+             ExtraBold extra_black ext_black ultra_black ExtraBlack bold \
+             light medium black heavy nord demi ultra ; do
+  token=$(echo " $token " | sed 's+_+ +g')
+  awk -F "|" -v IGNORECASE=1 -v token="$token" \
+  '$2 ~ token { print $1 }' tmp/tmp1.csv
+done | sort | uniq | while read family ; do
+  awk -F "|" -v family="$family" '$10 == family' "$FL" >> tmp/tmp.csv
+done
 
 awk -F "|" '{ print $10 }' tmp/tmp.csv | sort | uniq \
   | while read family ; do
