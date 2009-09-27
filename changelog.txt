@@ -1,6 +1,6 @@
 Git
-     - clean-up repoquery invocation (compute srpm name, fail gracefully,
-       complete no-arguments message)
+     - compute a short test summary
+     - clean-up repoquery invocation (compute srpm name, fail gracefully)
 1.24
      - update readme
      - make repo-font-audit also output the main csv file separately to make

@@ -81,6 +81,63 @@ else
 fi
 }
 
+# $1 = summary file
+# $2 = temporary data file
+# $3 = test number
+# $4 = test label
+complete_csv_summary() {
+  testcol=$(($3+3))
+  awk -F '|' -v testcol="$testcol" -v testlabel="$4" \
+      'FNR==1 {
+       if ( testcol < NF )
+              max = NF
+            else
+              max = testcol
+        newline = ""
+        for (i = 1 ; i <= max ; i++) {
+           if ( i > 1 ) newline = newline "|"
+           if ( i == testcol )
+             { newline = newline testlabel }
+           else
+             { newline = newline $i }
+         }
+        print newline
+       }' "$1" > tmp/tmp.ccs.header.csv
+  awk -F '|' -v t_datafile="$2" -v testcol="$testcol" \
+      'FILENAME==t_datafile { fail[$1"|"$2"|"$9] = 1 }
+       FILENAME!=t_datafile && FNR>1 {
+         if ( testcol < NF )
+              max = NF
+            else
+              max = testcol
+         line = $1 "|" $2 "|" $3
+         newline = ""
+         for (i = 1 ; i <= max ; i++) {
+           if ( i > 1 ) newline = newline "|"
+           if ( i == testcol )
+             { newline = newline fail[line] }
+           else
+             { newline = newline $i }
+         }
+         print newline
+         processed[line] = 1
+       }
+       END {
+         for ( line in fail ) {
+           if ( ! processed[line] ) {
+             newline = line "|"
+             for (i = 4 ; i < testcol ; i++) {
+               newline = newline "|"
+             }
+             newline  = newline "|" fail[line]
+             print newline
+           }
+         }
+       }' "$2" "$1" | sort -t "|" > tmp/tmp.ccs.body.csv
+  cat tmp/tmp.ccs.header.csv tmp/tmp.ccs.body.csv > "$1"
+  rm tmp/tmp.ccs.header.csv tmp/tmp.ccs.body.csv
+}
+
 substats() {
 ss_datafile="$1"
 
@@ -329,6 +386,8 @@ echo ""
 echo "Problem report:"
 echo ""
 
+echo "SRPM|RPM|File" > "$TSUM"
+
 # Arch check
 
 echo "– font files in arch packages:"
@@ -340,7 +399,7 @@ awk -F '|' '{ print $2 "." $4 "|" $6 }' tmp/tmp.csv | sort | uniq \
   | awk -F '|' '{ if ( $2 == "M" ) list=(list " [" $1 "]") ;
                               else list=(list " "  $1    ) } END \
                 { print list }' | pretty_indent
-
+complete_csv_summary "$TSUM" tmp/tmp.csv 1 "Arch package"
 summary tmp/tmp.csv
 
 # Install location check
@@ -350,7 +409,7 @@ echo "– font files installed outside /usr/share/fonts:"
 awk -F '|' '($13 != "Link") && ($9 !~ /^\/usr\/share\/fonts\//)' "$FL" > tmp/tmp.csv
 
 list-rpm tmp/tmp.csv
-
+complete_csv_summary "$TSUM" tmp/tmp.csv 2 "Outside /usr/share/fonts"
 summary tmp/tmp.csv
 
 [ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
@@ -364,7 +423,7 @@ echo "— fonts in packages that contain non-font data:"
 awk -F '|' '($13 != "Link") && ($8 != "0")' "$FL" > tmp/tmp.csv
 
 list-rpm tmp/tmp.csv
-
+complete_csv_summary "$TSUM" tmp/tmp.csv 3 "Mixed with non-font data"
 summary tmp/tmp.csv
 
 [ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
@@ -378,7 +437,7 @@ echo "– fonts in packages that do not declare font metadata:"
 awk -F '|' '($13 != "Link") && ($6 != "M")' "$FL" > tmp/tmp.csv
 
 list-rpm tmp/tmp.csv
-
+complete_csv_summary "$TSUM" tmp/tmp.csv 4 "Without rpm metadata"
 summary tmp/tmp.csv
 
 [ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
@@ -392,7 +451,7 @@ echo "– fonts in packages that do not use font package naming conventions:"
 awk -F "|" '$2 !~ /^[0-9abcdefghijklmnopqrstuvwxyz\.-]*-fonts$/' "$FL" > tmp/tmp.csv
 
 list-rpm tmp/tmp.csv
-
+complete_csv_summary "$TSUM" tmp/tmp.csv 5 "Bad rpm naming"
 summary tmp/tmp.csv
 
 echo -n "— fonts that declare face attributes in family names:  "
@@ -441,6 +500,7 @@ awk -F "|" '{ print $10 }' tmp/tmp.csv | sort | uniq \
     echo "$family|$rpmlist"
   done | column -t -s '|' | pretty_indent
 
+complete_csv_summary "$TSUM" tmp/tmp.csv 6 "Bad family naming"
 summary tmp/tmp.csv
 
 [ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
@@ -502,6 +562,7 @@ awk -F "|" '{ print $10 ", " $11 }' tmp/tmp.csv | sort | uniq \
       | sort | uniq
   done | column -t -s '|' | pretty_indent
 
+complete_csv_summary "$TSUM" tmp/tmp.csv 7 "Bad face naming"
 summary tmp/tmp.csv
 
 [ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
@@ -535,6 +596,7 @@ awk -F '|' '{ print $15 }' tmp/tmp.csv | uniq \
     tmp/tmp.csv | column -t -s '|' | pretty_indent
   done
 
+complete_csv_summary "$TSUM" tmp/tmp.csv 8 "Duplicated file"
 summary tmp/tmp.csv
 
 echo "– font faces duplicated by different packages:"
@@ -558,6 +620,7 @@ awk -F '|' '($10 != "") && ($11 != "") && ($12 != "PCF") && ($12 != "Type 1") \
     echo "$count|$face|$packages"
   done | sort -nr | column -t -s '|' | pretty_indent
 
+complete_csv_summary "$TSUM" tmp/tmp.csv 9 "Duplicated face (ext)"
 summary tmp/tmp.csv
 
 [ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
@@ -584,6 +647,7 @@ awk -F '|' '($10 != "") && ($11 != "") && ($12 != "PCF") && ($12 != "Type 1") \
 awk -F '|' '{ print $2 "|" $10 "|" $11 "|" $9 }' tmp/tmp.csv \
   | column -t -s '|' | pretty_indent
 
+complete_csv_summary "$TSUM" tmp/tmp.csv 10 "Duplicated face (int)"
 summary tmp/tmp.csv
 
 [ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
@@ -603,6 +667,8 @@ awk -F '|' '{ print $2 "-" $3 "." $4 }' tmp/tmp.csv | sort | uniq \
   done | sort -nr | awk '{ list = list " " $2 " (" $1 ")" } END \
                          { print list }' | pretty_indent
 
+complete_csv_summary "$TSUM" tmp/tmp.csv 11 "Family mixing"
+
 [ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
 echo "☛ Reliable font autoinstallation requires shipping only one font family \
 per font package. This indicates problems in the packaging or the packaged \
@@ -615,7 +681,7 @@ echo "– packages that symlink font files:"
 awk -F '|' '$13=="Link"' "$FL" > tmp/tmp.csv
 
 list-rpm tmp/tmp.csv
-
+complete_csv_summary "$TSUM" tmp/tmp.csv 12 "Font linking"
 summary tmp/tmp.csv
 
 if [ $(cat tmp/tmp.csv | wc -l) -gt 0 ] ; then
@@ -636,6 +702,7 @@ awk -F '|' '($13 == "Link") && ($17 == "")' "$FL" > tmp/tmp.csv
 awk -F '|' '{ print $9 " → " $16 "|" $2 "-" $3 "." $4  }' tmp/tmp.csv \
   | column -t -s "|" | pretty_indent
 
+complete_csv_summary "$TSUM" tmp/tmp.csv 13 "Broken symlink"
 summary tmp/tmp.csv
 
 echo "– packages with fonts rpmlint errors on:"
@@ -643,7 +710,7 @@ echo "– packages with fonts rpmlint errors on:"
 awk -F '|' '($13 != "Link") && ($7 != "0")' "$FL" > tmp/tmp.csv
 
 list-rpm tmp/tmp.csv
-
+complete_csv_summary "$TSUM" tmp/tmp.csv 14 "rpmlint"
 summary tmp/tmp.csv
 
 
@@ -661,6 +728,7 @@ awk -F '|' '{ print $2 "-" $3 "." $4 }' tmp/tmp.csv | uniq \
         { print sum "|" rpm "|(" srpm ")|" }' tmp/tmp.csv
   done | sort -nr | column -t -s '|' | pretty_indent
 
+complete_csv_summary "$TSUM" tmp/tmp.csv 15 "libmagic problem"
 summary tmp/tmp.csv
 
 [ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
@@ -679,6 +747,7 @@ awk -F '|' '{ print $2 "-" $3 "." $4 }' tmp/tmp.csv | uniq \
         { print sum "|" rpm "|(" srpm ")|" }' tmp/tmp.csv
   done | sort -nr | column -t -s '|' | pretty_indent
 
+complete_csv_summary "$TSUM" tmp/tmp.csv 16 "fc-query problem"
 summary tmp/tmp.csv
 
 [ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
@@ -693,6 +762,7 @@ awk -F '|' '($12 != "") && (($10 == "") || ($11 == ""))' "$FL" > tmp/tmp.csv
 awk -F '|' '{ print $9 "|" $2 "-" $3 "." $4 }' tmp/tmp.csv \
   | column -t -s '|' | pretty_indent
 
+complete_csv_summary "$TSUM" tmp/tmp.csv 17 "No English metadata"
 summary tmp/tmp.csv
 
 [ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
@@ -715,10 +785,11 @@ FPL="font-packages.csv"
 PWFL="packages-with-fonts.csv"
 FFL="font-files.csv"
 CSL="checksums.csv"
-FL="repo-font-audit.csv"
-FLNM="repo-font-audit-no-multilib.csv"
+FL="consolidated-data.csv"
+FLNM="consolidated-data-no-multilib.csv"
+TSUM="test-summary.csv"
 RES="repo-font-audit-$ID-$TIMESTAMP"
-FLRES="repo-font-audit-$ID-$TIMESTAMP.csv"
+SRES="repo-font-audit-$ID-$TIMESTAMP-short"
 
 TMPDIR=$(mktemp -d --tmpdir=/var/tmp $RES-XXXXXXXXXX)
 cd $TMPDIR
@@ -729,16 +800,23 @@ collect
 consolidate
 analyse | tee report.txt
 
-mkdir "$RES"
-cp "$FL" tmp/rpmlint-*.txt report.txt "$RES"
-tar cf "$RES.tar" "$RES"
-xz -9 "$RES.tar"
-mv "$FL" "$FLRES"
-xz -9 "$FLRES"
-mv "$RES.tar.xz" "$ORIGDIR/"
-mv "$FLRES.xz" "$ORIGDIR/"
+mkdir "$RES/"
+cp "$FL" "$TSUM" tmp/rpmlint-*.txt "$RES/"
+cat report.txt > "$RES/report.txt"
+
+mkdir "$SRES/"
+cp "$TSUM" "$SRES/"
+cat report.txt > "$SRES/report.txt"
+
+for report in "$RES" "$SRES" ; do
+  tar cf "$report.tar" "$report"
+  xz -9  "$report.tar"
+  mv "$report.tar.xz" "$ORIGDIR/"
+done
+
+
 echo "1. Complete extracted data: $ORIGDIR/$RES.tar.xz"
-echo "2. CSV summary: $ORIGDIR/$FLRES.xz"
+echo "2. Short summary: $ORIGDIR/$SRES.tar.xz"
 echo ""
 echo "Generated using the repo-font-audit command from"
 echo "http://fedoraproject.org/wiki/fontpackages"
