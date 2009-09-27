@@ -1,4 +1,4 @@
-Git
+1.25
      - repo-font-audit: move general statistics to the end, display test
        summary
      - repo-font-audit: compute a short test summary
