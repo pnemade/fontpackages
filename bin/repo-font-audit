@@ -125,11 +125,11 @@ complete_csv_summary() {
        END {
          for ( line in fail ) {
            if ( ! processed[line] ) {
-             newline = line "|"
+             newline = line
              for (i = 4 ; i < testcol ; i++) {
                newline = newline "|"
              }
-             newline  = newline "|" fail[line]
+             newline = newline "|" fail[line]
              print newline
            }
          }
@@ -406,6 +406,7 @@ awk -F '|' '{ print $2 "." $4 "|" $6 }' tmp/tmp.csv | sort | uniq \
   | awk -F '|' '{ if ( $2 == "M" ) list=(list " [" $1 "]") ;
                               else list=(list " "  $1    ) } END \
                 { print list }' | pretty_indent
+
 complete_csv_summary "$TSUM" tmp/tmp.csv 1 "Arch package"
 summary tmp/tmp.csv
 
@@ -670,11 +671,14 @@ awk -F '|' '{ print $2 "-" $3 "." $4 }' tmp/tmp.csv | sort | uniq \
   | while read rpm ; do
     awk -F '|' -v rpm="$rpm" '(($2 "-" $3 "." $4) == rpm) \
           { print $2 "|" $10 }' tmp/tmp.csv | sort | uniq \
-      | awk -F '|' '{ sum+=1 ; rpm=$1 } END { if (sum > 1) print sum " " rpm  }'
-  done | sort -nr | awk '{ list = list " " $2 " (" $1 ")" } END \
-                         { print list }' | pretty_indent
+      | awk -F '|' '{ sum+=1 ; rpm=$1 } END { if (sum > 1) print rpm }'
+  done | while read rpm ; do
+    awk -F '|' -v rpm="$rpm" '(($2 "-" $3 "." $4) == rpm)' tmp/tmp.csv > tmp/tmp1.csv
+  done
 
-complete_csv_summary "$TSUM" tmp/tmp.csv 11 "Family mixing"
+list-rpm tmp/tmp1.csv
+complete_csv_summary "$TSUM" tmp/tmp1.csv 11 "Family mixing"
+summary tmp/tmp1.csv
 
 [ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
 echo "☛ Reliable font autoinstallation requires shipping only one font family \
@@ -841,13 +845,17 @@ consolidate
 analyse | tee report.txt
 sum_up  | tee summary.txt
 
+sed -i "s=.$(echo -ne '\b')==g" report.txt
+
+cp "$FL" "tmp/$FL"
+echo "SRPM|RPM|EVR|Arch|RPM size|RPM metadata|rpmlint score|foreign data|filename|family name|face name|format (fontconfig)|format (libmagic)|file size|checksum|symlink target|symlink provider" > "$FL"
+cat "tmp/$FL" >> "$FL"
+
 mkdir "$RES/"
-cp "$FL" "$TSUM" tmp/rpmlint-*.txt summary.txt "$RES/"
-cat report.txt > "$RES/report.txt"
+cp "$FL" "$TSUM" tmp/rpmlint-*.txt summary.txt report.txt "$RES/"
 
 mkdir "$SRES/"
-cp "$TSUM" summary.txt "$SRES/"
-cat report.txt > "$SRES/report.txt"
+cp "$TSUM" summary.txt report.txt "$SRES/"
 
 for report in "$RES" "$SRES" ; do
   tar cf "$report.tar" "$report"
