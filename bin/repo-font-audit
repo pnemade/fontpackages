@@ -201,6 +201,37 @@ result=$(canonalise_and_invert_string "$result" \
 echo "$result"
 }
 
+# $1 csv with test results
+test_score() {
+
+  awk -F '|' ' FNR>1 {
+      id = $1" | "$2
+      fail[id] = 1
+      if ( max < NF ) { max = NF }
+      for (i = 4 ; i <= NF ; i++) {
+        score[id"|"i] = score[id"|"i] + $i
+      }
+    }
+    END {
+      for ( id in fail ) {
+        newline = id
+        for (i = 4 ; i <= NF ; i++) {
+          newline = newline "|" score[id"|"i]
+        }
+        print newline
+      }
+  }' "$1" | sort -t '|' | column -t -s '|'
+
+ echo ""
+
+ awk -F '|' 'FNR==1 {
+   for (i = 4 ; i <= NF ; i++) {
+     print "— test " i-3 ": " $i
+   }
+ }' "$1" | column -t -s ':'
+
+}
+
 collect() {
 echo "Searching for packages with font metadata…"
 repoquery --repofrompath=$REPOID,$REPOURL --repoid=$REPOID \
@@ -357,30 +388,6 @@ awk -F '|' '$15 != "" { print $1 "|" $2 "|" $9 "|" $15 }' "$FL" | sort | uniq \
 }
 
 analyse() {
-echo ""
-echo "Statistics:"
-echo ""
-
-echo "– packages that declare font metadata:"
-echo ""
-
-awk -F '|' '$6=="M"' "$FL" > tmp/tmp.csv
-stats tmp/tmp.csv
-
-echo "☛ File size is computed as extracted, while rpm is a compressed \
-format." | pretty_indent
-echo "☛ Mid-term, files in legacy PCF or Type1 formats need to be converted \
-or removed." | pretty_indent
-
-echo "– font files in other packages (we should not find any!)"
-echo ""
-
-awk -F '|' '($6 != "M") && ($13 != "Link")' "$FL" > tmp/tmp.csv
-stats tmp/tmp.csv
-
-[ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
-echo "☛ Bad packaging may result in arched packages or mixed content." \
-| pretty_indent
 
 echo ""
 echo "Problem report:"
@@ -771,6 +778,39 @@ echo "☛ The font files need to be fixed to declare metadata in English too." \
 
 }
 
+sum_up() {
+echo ""
+echo "Statistics:"
+echo ""
+
+echo "– packages that declare font metadata:"
+echo ""
+
+awk -F '|' '$6=="M"' "$FL" > tmp/tmp.csv
+stats tmp/tmp.csv
+
+echo "☛ File size is computed as extracted, while rpm is a compressed \
+format." | pretty_indent
+echo "☛ Mid-term, files in legacy PCF or Type1 formats need to be converted \
+or removed." | pretty_indent
+
+echo "– font files in other packages (we should not find any!)"
+echo ""
+
+awk -F '|' '($6 != "M") && ($13 != "Link")' "$FL" > tmp/tmp.csv
+stats tmp/tmp.csv
+
+[ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
+echo "☛ Bad packaging may result in arched packages or mixed content." \
+| pretty_indent
+
+echo "– problem summary:"
+echo ""
+
+test_score "$TSUM" | pretty_indent
+
+}
+
 # End of function declarations
 
 [ "$#" -lt "2" ] && usage
@@ -799,13 +839,14 @@ mkdir tmp
 collect
 consolidate
 analyse | tee report.txt
+sum_up  | tee summary.txt
 
 mkdir "$RES/"
-cp "$FL" "$TSUM" tmp/rpmlint-*.txt "$RES/"
+cp "$FL" "$TSUM" tmp/rpmlint-*.txt summary.txt "$RES/"
 cat report.txt > "$RES/report.txt"
 
 mkdir "$SRES/"
-cp "$TSUM" "$SRES/"
+cp "$TSUM" summary.txt "$SRES/"
 cat report.txt > "$SRES/report.txt"
 
 for report in "$RES" "$SRES" ; do
