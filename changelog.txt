@@ -1,4 +1,4 @@
-Git
+1.27
      - do not forget to rewrite fullname in the remapping and merging
        fontconfig templates
      - repo-font-audit: move temporary working directory to /tmp
