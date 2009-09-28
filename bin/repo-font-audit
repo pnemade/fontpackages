@@ -832,7 +832,7 @@ TSUM="test-summary.csv"
 RES="repo-font-audit-$ID-$TIMESTAMP"
 SRES="repo-font-audit-$ID-$TIMESTAMP-short"
 
-TMPDIR=$(mktemp -d --tmpdir=/var/tmp $RES-XXXXXXXXXX)
+TMPDIR=$(mktemp -d --tmpdir=/tmp $RES-XXXXXXXXXX)
 cd $TMPDIR
 
 mkdir tmp
