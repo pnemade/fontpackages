@@ -1,3 +1,6 @@
+Git
+     - repo-font-audit: only check naming of packages that contain actual
+       font files
 1.26
      - repo-font-audit: fix face-in-family check
      - repo-font-audit: small fixes

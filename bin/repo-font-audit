@@ -456,7 +456,9 @@ to work." | pretty_indent
 
 echo "– fonts in packages that do not use font package naming conventions:"
 
-awk -F "|" '$2 !~ /^[0-9abcdefghijklmnopqrstuvwxyz\.-]*-fonts$/' "$FL" > tmp/tmp.csv
+awk -F "|" '($13 != "Link") && \
+            $2 !~ /^[0-9abcdefghijklmnopqrstuvwxyz\.-]*-fonts$/' "$FL" \
+            > tmp/tmp.csv
 
 list-rpm tmp/tmp.csv
 complete_csv_summary "$TSUM" tmp/tmp.csv 5 "Bad rpm naming"
