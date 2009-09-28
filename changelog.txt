@@ -1,4 +1,6 @@
 Git
+     - do not forget to rewrite fullname in the remapping and merging
+       fontconfig templates
      - repo-font-audit: move temporary working directory to /tmp
      - repo-font-audit: fix family mixing check
      - repo-font-audit: only check naming of packages that contain actual
