@@ -1,4 +1,5 @@
 Git
+     - repo-font-audit: fix family mixing check
      - repo-font-audit: only check naming of packages that contain actual
        font files
 1.26

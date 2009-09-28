@@ -632,7 +632,7 @@ infrastructure and user side. Very often an upstream that copied some fonts \
 will forget to keep them up to date, and the duplication will result in the \
 distribution of old buggy data. Even if some duplicate font files are a \
 genuine fork with different features from the original, applications won't be \
-able to select them relyably because of naming collisions. We should alway \
+able to select them reliably because of naming collisions. We should alway \
 ship a single version of any font face in a dedicated font package, and use \
 fontconfig or symlinks to share it accross packages." | pretty_indent
 
@@ -661,19 +661,21 @@ for special symbol font families." | pretty_indent
 
 echo "— packages that mix several font families (ignoring legacy formats):"
 
-awk -F '|' '($10 != "") && ($12 != "PCF") && ($12 != "Type 1")' "$FL" > tmp/tmp.csv
-awk -F '|' '{ print $2 "-" $3 "." $4 }' tmp/tmp.csv | sort | uniq \
-  | while read rpm ; do
-    awk -F '|' -v rpm="$rpm" '(($2 "-" $3 "." $4) == rpm) \
-          { print $2 "|" $10 }' tmp/tmp.csv | sort | uniq \
-      | awk -F '|' '{ sum+=1 ; rpm=$1 } END { if (sum > 1) print rpm }'
-  done | while read rpm ; do
-    awk -F '|' -v rpm="$rpm" '(($2 "-" $3 "." $4) == rpm)' tmp/tmp.csv > tmp/tmp1.csv
-  done
+awk -F '|' '($10 != "") && ($12 != "PCF") && ($12 != "Type 1")
+    {
+      rpm = $2 "-" $3 "." $4
+      if ( ! family[rpm] ) { family[rpm] = $10 }
+      else { if ( family[rpm] != $10 ) { mixed[rpm] = 1 } }
+    }
+    END {
+      for ( rpm in mixed ) { print rpm }
+    }' "$FL" | while read rpm ; do
+      awk -F '|' -v rpm="$rpm" '(($2 "-" $3 "." $4) == rpm)' "$FL"
+    done > tmp/tmp.csv
 
-list-rpm tmp/tmp1.csv
-complete_csv_summary "$TSUM" tmp/tmp1.csv 11 "Family mixing"
-summary tmp/tmp1.csv
+list-rpm tmp/tmp.csv
+complete_csv_summary "$TSUM" tmp/tmp.csv 11 "Family mixing"
+summary tmp/tmp.csv
 
 [ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
 echo "☛ Reliable font autoinstallation requires shipping only one font family \
