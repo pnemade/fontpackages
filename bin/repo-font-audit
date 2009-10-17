@@ -252,7 +252,8 @@ echo "Searching for packages that include files with common font extensions…"
 repoquery --repofrompath=$REPOID,$REPOURL --repoid=$REPOID \
           --qf "%{sourcerpm}|%{name}|%{epoch}:%{version}-%{release}|%{arch}|%{packagesize}" \
           -f '*.ttf' -f '*.otf' -f '*.ttc' \
-          -f '*.pfb' -f '*.pfa' -f '*.pcf.gz' --quiet \
+          -f '*.pfb' -f '*.pfa' \
+          -f '*.pcf.gz' -f '*.pcf' -f '*.bdf' --quiet \
           | sed 's=^\([^|]\+\?\)\-\([^-|]\+\?\)\-\([^-|]\+\?\)|=\1|=g' \
           | sort | uniq > "$PWFL"
 
@@ -288,9 +289,9 @@ cat "../$FPL" "../$PWFL" | awk -F '|' '{ print $2 "-" $3 "." $4 }' | sort | uniq
     | grep -v "^./etc/fonts/conf.d/" \
     | grep -v "^./usr/share/doc/" \
     | grep -v "^./etc/X11/fontpath.d/" \
-    | grep -viE '\.((ttf)|(ttc)|(otf)|(pfa)|(pfb)|(pcf)|(pcf\.gz))$' |wc -l)
+    | grep -viE '\.((ttf)|(ttc)|(otf)|(pfa)|(pfb)|(bdf)|(pcf)|(pcf\.gz))$' |wc -l)
   cat "$rpm.lst" \
-    | grep -iE '\.((ttf)|(ttc)|(otf)|(pfa)|(pfb)|(pcf)|(pcf\.gz))$' \
+    | grep -iE '\.((ttf)|(ttc)|(otf)|(pfa)|(pfb)|(bdf)|(pcf)|(pcf\.gz))$' \
     > "$rpm.fonts.lst"
   cpio -idm --quiet -E "$rpm.fonts.lst" < "$rpm.cpio"
   echo -ne "\b● "
@@ -312,6 +313,9 @@ cat "../$FPL" "../$PWFL" | awk -F '|' '{ print $2 "-" $3 "." $4 }' | sort | uniq
         ;;
       "X11 Portable Compiled Font data")
         echo -n "b"
+        ;;
+      "X11 BDF font text")
+        echo -n "B"
         ;;
       # PostScript files are a mess
       "PostScript Type 1 font text")

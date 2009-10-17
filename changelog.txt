@@ -1,4 +1,5 @@
 Git
+     - repo-font-audit: fixes for bitmap fonts
      - repo-font-audit: make test_score() smarter
 1.27
      - do not forget to rewrite fullname in the remapping and merging
