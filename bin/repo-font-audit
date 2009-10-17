@@ -204,23 +204,28 @@ echo "$result"
 # $1 csv with test results
 test_score() {
 
-  awk -F '|' ' FNR>1 {
-      id = $1" | "$2
-      fail[id] = 1
-      if ( max < NF ) { max = NF }
-      for (i = 4 ; i <= NF ; i++) {
-        score[id"|"i] = score[id"|"i] + $i
-      }
-    }
-    END {
-      for ( id in fail ) {
-        newline = id
+
+if [ $(cat "$1" | wc -l) -gt 1 ] ; then
+  (
+    echo "SRPM|RPM|1|2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17"
+    awk -F '|' ' FNR>1 {
+        id = $1 "|" $2
+        fail[id] = 1
+        if ( max < NF ) { max = NF }
         for (i = 4 ; i <= NF ; i++) {
-          newline = newline "|" score[id"|"i]
+          score[id"|"i] = score[id"|"i] + $i
         }
-        print newline
       }
-  }' "$1" | sort -t '|' | column -t -s '|'
+      END {
+        for ( id in fail ) {
+          newline = id
+          for (i = 4 ; i <= NF ; i++) {
+            newline = newline "|" score[id"|"i]
+          }
+          print newline
+        }
+    }' "$1" | sort -t '|'
+  ) | column -t -s '|'
 
  echo ""
 
@@ -229,6 +234,9 @@ test_score() {
      print "— test " i-3 ": " $i
    }
  }' "$1" | column -t -s ':'
+else
+  echo "⇒  None!"
+fi
 
 }
 
