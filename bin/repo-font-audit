@@ -6,7 +6,7 @@
 # Function declarations
 
 usage() {
-/bin/cat >&2 << EOF_USAGE
+cat >&2 << EOF_USAGE
 Usage: $0 <id> <location>
 <id>:       identifier of the package repository to check
 <location>: location of the package repository to check
@@ -20,12 +20,12 @@ exit 1
 }
 
 
-
 # FIXME: only extracts info about the first typeface in a TTC file for now
 parse_localized_fc_query() {
   field="$1"
   file="$2"
-  fieldstring=$(awk -F ':' -v field="$field"  '$1 == "\t"field { print $2 ; exit }' "$file" \
+  fieldstring=$(awk -F ':' -v field="$field" \
+                    '$1 == "\t"field { print $2 ; exit }' "$file" \
                | sed 's="(s)="=g' | sed 's=" *"=|=g'| sed 's= *" *==g')"|"
   default=$(echo $fieldstring | awk -F "|" '{ print $1 }')
   if $(grep -q "^"$'\t'$field"lang:" "$file") ; then
@@ -54,6 +54,7 @@ pretty_indent() {
   echo ""
 }
 
+
 tally() {
 t_datafile=$1
 
@@ -61,8 +62,10 @@ t_file=$(cat "$t_datafile" | wc -l)
 t_file_size=$(awk -F '|' '{ sum += $14 } END { print sum }' "$t_datafile")
 t_file_size=$((t_file_size/(1024*1024)))
 
-t_rpm=$(awk -F '|' '{ print $2 "-" $3 "." $4 }' "$t_datafile" | sort | uniq | wc -l)
-t_rpm_size=$(awk -F '|' '{ print $2 "-" $3 "." $4 "|" $5 }' "$t_datafile" | sort | uniq \
+t_rpm=$(awk -F '|' '{ print $2 "-" $3 "." $4 }' "$t_datafile" \
+        | sort | uniq | wc -l)
+t_rpm_size=$(awk -F '|' '{ print $2 "-" $3 "." $4 "|" $5 }' "$t_datafile" \
+             | sort | uniq \
             |awk -F '|' '{ sum += $2 } END { print sum }')
 t_rpm_size=$((t_rpm_size/(1024*1024)))
 
@@ -71,72 +74,57 @@ t_srpm=$(awk -F '|' '{ print $1 }' "$t_datafile" | sort | uniq | wc -l)
 echo "$t_file|$t_rpm|$t_srpm|$t_file_size|$t_rpm_size"
 }
 
+
 summary() {
 if [ $(cat "$1" | wc -l) -gt 0 ] ; then
   tally "$1" | awk -F '|' '{ print "⇒ " $1 " file(s) (" $4 " MiB) in " $2 \
-        " package(s) (" $5 " MiB) generated from " $3 " source package(s)." }' \
+        " package(s) (" $5 " MiB) generated from " $3 " source package(s)." }'\
         | pretty_indent
 else
   echo "⇒  None!" | pretty_indent
 fi
 }
 
+
 # $1 = summary file
 # $2 = temporary data file
-# $3 = test number
-# $4 = test label
+# $3 = test id
 complete_csv_summary() {
-  testcol=$(($3+3))
-  awk -F '|' -v testcol="$testcol" -v testlabel="$4" \
-      'FNR==1 {
-       if ( testcol < NF )
-              { max = NF }
-            else
-              { max = testcol }
-        newline = ""
-        for (i = 1 ; i <= max ; i++) {
-           if ( i > 1 ) newline = newline "|"
-           if ( i == testcol )
-             { newline = newline testlabel }
-           else
-             { newline = newline $i }
-         }
-        print newline
-       }' "$1" > tmp/tmp.ccs.header.csv
-  awk -F '|' -v t_datafile="$2" -v testcol="$testcol" \
+  awk -F '|' -v t_datafile="$2" -v testlabel="$3" \
       'FILENAME==t_datafile { fail[$1"|"$2"|"$9] = 1 }
-       FILENAME!=t_datafile && FNR>1 {
-         if ( testcol < NF )
-              { max = NF }
-            else
-              { max = testcol }
-         line = $1 "|" $2 "|" $3
-         newline = ""
-         for (i = 1 ; i <= max ; i++) {
-           if ( i > 1 ) newline = newline "|"
-           if ( i == testcol )
-               { newline = newline fail[line] }
-             else
-               { newline = newline $i }
+       FILENAME!=t_datafile && FNR==1 {
+        max = NF + 1
+        header = $1
+        for (i = 2 ; i <= max ; i++) {
+           header = header "|" $i
          }
-         print newline
+        print header testlabel
+       }
+       FILENAME!=t_datafile && FNR>1 {
+         line = $1 "|" $2 "|" $3
+         newline = $1
+         for (i = 2 ; i <= max ; i++) {
+           newline = newline "|" $i
+         }
+         print newline fail[line]
          processed[line] = 1
        }
        END {
          for ( line in fail ) {
            if ( ! processed[line] ) {
              newline = line
-             for (i = 4 ; i < testcol ; i++) {
+             for (i = 4 ; i <= max ; i++) {
                newline = newline "|"
              }
-             newline = newline "|" fail[line]
-             print newline
+             print newline fail[line]
            }
          }
-       }' "$2" "$1" | sort -t "|" > tmp/tmp.ccs.body.csv
-  cat tmp/tmp.ccs.header.csv tmp/tmp.ccs.body.csv > "$1"
-  rm tmp/tmp.ccs.header.csv tmp/tmp.ccs.body.csv
+       }' "$2" "$1" > tmp/tmp.ccs.csv
+  awk 'FNR==1' tmp/tmp.ccs.csv > "$1"
+  awk 'FNR>1'  tmp/tmp.ccs.csv | sort -f -t '|' >> "$1"
+  rm tmp/tmp.ccs.csv
 }
+
 
 substats() {
 ss_datafile="$1"
@@ -149,6 +137,7 @@ awk -F '|' '{ print $NF }' "$ss_datafile" | sort | uniq \
     rm tmp/tmp.ss.csv
   done
 }
+
 
 stats() {
 s_datafile="$1"
@@ -168,14 +157,15 @@ if [ $(cat "$s_datafile" | wc -l) -gt 0 ] ; then
 fi
 }
 
-list-rpm() {
 
+list-rpm() {
 if [ $(cat "$1" | wc -l) -gt 0 ] ; then
   awk -F '|' '{ if ( $6 == "M" ) print "[" $2 "]" ; \
                             else print     $2     }' "$1" | sort | uniq \
     | awk -F '|' '{ list = list " " $1 } END { print list }' | pretty_indent
 fi
 }
+
 
 canonalise_and_invert_string() {
   cais=""
@@ -185,6 +175,7 @@ canonalise_and_invert_string() {
   done
   echo " $cais"
 }
+
 
 wws_resolve () {
 cais_name=$(canonalise_and_invert_string $1)
@@ -201,10 +192,335 @@ result=$(canonalise_and_invert_string "$result" \
 echo "$result"
 }
 
+
+# $1 test id
+# $2 "title" of "help"
+test_help() {
+case "$1" in
+  "arch-package")
+    case "$2" in
+      "title")
+        echo "Fonts in arch packages"
+        ;;
+      "help")
+        cat << EOF
+Fonts are not arch-specific; please make sure they are deployed in noarch
+packages.
+EOF
+        ;;
+    esac
+    ;;
+  "outside-usr-share-fonts")
+    case "$2" in
+      "title")
+        echo "Fonts deployed outside /usr/share/fonts"
+        ;;
+      "help")
+        cat << EOF
+The standard location for font files is under the /usr/share/fonts root
+(default fontconfig setting). Please simplify the work of font utilities
+and use it exclusively. It is always possible to symlink font files
+somewhere else on the filesystem if an application requires it.
+
+If you fear exposing your font files in fontconfig will cause problems,
+please work with the fontconfig maintainers to resolve them.
+EOF
+        ;;
+    esac
+    ;;
+  "mixed-with-non-font-data")
+    case "$2" in
+      "title")
+        echo "Fonts in packages that contain non-font data"
+        ;;
+      "help")
+        cat << EOF
+Please do not mix font files with non-font data in packages. Fonts are
+usually useful outside of the package that embeds them and should be
+installable without pulling in other material.
+EOF
+        ;;
+    esac
+    ;;
+  "without-rpm-metadata")
+    case "$2" in
+      "title")
+        echo "Fonts in packages that do not declare font metadata"
+        ;;
+      "help")
+        cat << EOF
+Font-specific rpm metadata is required for automatic font installation to
+work. If you apply our font packaging templates, it will be generated at
+package creation time.
+EOF
+        ;;
+    esac
+    ;;
+  "bad-rpm-naming")
+    case "$2" in
+      "title")
+        echo "Fonts in packages that do not respect font naming conventions"
+        ;;
+      "help")
+        cat << EOF
+Please respect font package naming conventions and provide consistent
+packages to users. Some scripts may depend on strict package naming.
+EOF
+        ;;
+    esac
+    ;;
+  "bad-family-naming")
+    case "$2" in
+      "title")
+        echo "Fonts that declare face attributes in family names"
+        ;;
+      "help")
+        cat << EOF
+To be properly processed by applications face qualifiers need to be
+declared in style names. Some application stacks such as Microsoft WPF will
+try to workaround bad font naming with dynamic renaming heuristics¹, but
+heuristics are brittle and pose interoperability problems with applications
+that do not use them.
+
+If one your font files is listed here please ask its upstream to fix its
+naming so it does not need further reprocessing. And in the meanwhile patch
+it (if it is available in sfd form) or add a fontconfig rule to your
+package to hide the problem².
+
+There may be a few false positives in this test as some common face
+qualifiers can be used with a different meaning in family names.
+
+¹ http://blogs.msdn.com/text/attachment/2249036.ashx
+  http://blogs.adobe.com/typblography/typotechnica2007/Font%20names.pdf
+  http://blogs.adobe.com/typblography/atypi2006/CSS%20&%20OT%2015.pdf
+² cf the “fontpackages” remapping template; unfortunately this workaround
+won't fix problems for non-fontconfig applications, or when interoperating
+with other systems.
+EOF
+        ;;
+    esac
+    ;;
+  "bad-style-naming")
+    case "$2" in
+      "title")
+        echo "Font faces that declare non-WWS compliant styles"
+        ;;
+      "help")
+        cat << EOF
+This WWS-like test checks if font faces use the “Width Weight Slant” naming
+convention¹. As noted by Adobe the CSS family model is less than ideal, but
+it's a standard and applications expect it².
+
+Since our applications do not workaround bad font naming with dynamic
+renaming heuristics, achieving consistent style naming that can be used in
+CSS/web oriented applications requires fixing face naming directly in the
+font files. For this reason we test font style naming separately from font
+family naming, and do not support complex weight abbreviations and
+suffixes³.
+
+To pass this test make sure your style names do not include any qualifier
+not defined in the WWS whitepaper¹, and that “Width”, “Weight” or “Slant”
+are defined only once. Any other qualifier belongs in the font family name.
+
+If one your font files is listed here please ask its upstream to fix its
+naming so it does not need further reprocessing. And in the meanwhile patch
+it (if it is available in sfd form) or add a fontconfig rule to your
+package to hide the problem⁴.
+
+¹ http://blogs.msdn.com/text/attachment/2249036.ashx
+  http://blogs.adobe.com/typblography/typotechnica2007/Font%20names.pdf
+² http://blogs.adobe.com/typblography/atypi2006/CSS%20&%20OT%2015.pdf
+³ As defined in the end of the WWS renaming algorithm described in the
+  Microsoft whitepaper.
+⁴ cf the “fontpackages” remapping template; unfortunately this workaround
+  won't fix problems for non-fontconfig applications, or when
+  interoperating with other systems.
+EOF
+        ;;
+    esac
+    ;;
+  "duplicated-file")
+    case "$2" in
+      "title")
+        echo "Exact font file duplication"
+        ;;
+      "help")
+        cat << EOF
+Several packages duplicate font files with the same checksum. This
+needlessly wastes resources.
+EOF
+        ;;
+    esac
+    ;;
+  "duplicated-face-ext")
+    case "$2" in
+      "title")
+        echo "Font faces duplicated by different packages"
+        ;;
+      "help")
+        cat << EOF
+Face duplication wastes resources infrastructure and user side.
+
+Very often an upstream that copied some fonts will forget to keep them up
+to date, and the duplication will result in the distribution of old buggy
+data. Even when some duplicated font faces are a genuine fork with
+different features from the original, applications won't be able to select
+them reliably because of naming collision.
+
+We should always ship only one version of a font face in the repository,
+and use fontconfig or symlinks to share it accross packages.
+EOF
+        ;;
+    esac
+    ;;
+  "duplicated-face-int")
+    case "$2" in
+      "title")
+        echo "Font faces duplicated within a package"
+        ;;
+      "help")
+        cat << EOF
+Face duplication within a package is almost certainly a bug, except for
+special symbol font families.
+
+Fonts that were split because of the limitations of legacy font formats
+(PCF, Type 1…) should be converted to modern OpenType (TT, CFF or bitmap)
+containers.
+EOF
+        ;;
+    esac
+    ;;
+  "family-mixing")
+    case "$2" in
+      "title")
+        echo "Packages that mix different font families"
+        ;;
+      "help")
+        cat << EOF
+Reliable font auto-installation requires shipping only one font family
+per font package.
+
+(If you've remapped some font names at the fontconfig level your package
+may appear here pending some fontconfig fixes upstream is aware of).
+EOF
+        ;;
+    esac
+    ;;
+  "font-linking")
+    case "$2" in
+      "title")
+        echo "Font linking"
+        ;;
+      "help")
+        cat << EOF
+Symlinking is a way for non-font packages to avoid duplicating font files,
+but it is also a symptom of missing or incomplete fontconfig support.
+Fontconfig has been our default font system for a long time, and accessing
+fonts by other means will cause behaviour inconsistencies and many other
+problems (since fontconfig is much more than a file locating library)
+
+Please ask the package upstream to add fontconfig support to their code
+(possibly, via a higher-level library such as pango-cairo).
+EOF
+        ;;
+    esac
+    ;;
+  "broken-symlink")
+    case "$2" in
+      "title")
+        echo "Broken symlinks to font files"
+        ;;
+      "help")
+        cat << EOF
+The symlinked font file has moved, been renamed, or the symlink was never
+properly set up.
+
+You can avoid the hassle of maintaining font file symlinks by asking the
+package upstream to add fontconfig support to their code (possibly, via a
+higher-level library such as pango-cairo).
+EOF
+        ;;
+    esac
+    ;;
+  "rpmlint")
+    case "$2" in
+      "title")
+        echo "Packages with fonts rpmlint errors on"
+        ;;
+      "help")
+        cat << EOF
+Check rpmlint output to fix those packages (using the -i flag if you
+don't understand it).
+EOF
+        ;;
+    esac
+    ;;
+  "libmagic")
+    case "$2" in
+      "title")
+        echo "Packages with font files not identified as such by libmagic"
+        ;;
+      "help")
+        cat << EOF
+libmagic could not identify some files with font-like extensions in the
+package. The files may be malformed and in need of fixing, or they use a
+font extension when they should not, or libmagic has a bug (in that case,
+please report the problem so it is fixed).
+EOF
+        ;;
+    esac
+    ;;
+  "fc-query")
+    case "$2" in
+      "title")
+        echo "Packages with font files that fc-query can not parse"
+        ;;
+      "help")
+        cat << EOF
+fc-query could not parse some font files in the package. The files may be
+malformed and in need of fixing, or fc-query has a bug (in that case,
+please report the problem so it is fixed).
+EOF
+        ;;
+    esac
+    ;;
+  "no-english-metadata")
+    case "$2" in
+      "title")
+        echo "Packages with localized metadata but no English variant"
+        ;;
+      "help")
+        cat << EOF
+Some font files in the package declare localized metadata, but do not
+include an English variant. They need to be fixed to also declare metadata
+in English.
+EOF
+        ;;
+    esac
+    ;;
+ *)
+    echo "Unknown test."
+    ;;
+esac
+}
+
+
+# $1 this test id
+# $2 csv file with the results of this test
+# $3 csv file that consolidates the results of all tests
+test_wrapup() {
+
+complete_csv_summary "$3" "$2" "$1"
+summary "$2"
+
+[ $(cat "$2" | wc -l) -gt 0 ] && \
+( echo -n "☛ " ; test_help "$1" help ) | pretty_indent
+
+}
+
+
 # $1 csv with test results
 test_score() {
-
-
 if [ $(cat "$1" | wc -l) -gt 1 ] ; then
   (
     awk -F '|' '
@@ -246,13 +562,11 @@ if [ $(cat "$1" | wc -l) -gt 1 ] ; then
       }' "$1"
   ) | column -t -s '|'
 
- echo ""
-
   awk -F '|' '
     FNR==1 {
       max = NF
       for (i = 4 ; i <= max ; i++) {
-        legend[i] = "— test " i-3 ": " $i }
+        legend[i] = i-3 "|" $i }
       }
     FNR>1 {
       for (i = 4 ; i <= max ; i++) {
@@ -263,12 +577,22 @@ if [ $(cat "$1" | wc -l) -gt 1 ] ; then
       for (i = 4 ; i <= max ; i++) {
         if ( totalscore[i] ) { print legend[i] }
       }
-    }' "$1" | column -t -s ':'
+    }' "$1" | while read line ; do
+      echo ""
+      testnumber=$(echo $line | awk -F '|' '{ print $1 }')
+      testid=$(echo $line | awk -F '|' '{ print $2 }')
+      echo -n "$testnumber. "
+      test_help $testid title
+      echo ""
+      ( echo -n "☛ " ; test_help $testid help ) | pretty_indent
+    done
+
 else
   echo "⇒  None!"
 fi
 
 }
+
 
 collect() {
 echo "Searching for packages with font metadata…"
@@ -295,8 +619,8 @@ fi
 echo "Inspecting packages:"
 rm -f "$FFL"
 cd "tmp"
-cat "../$FPL" "../$PWFL" | awk -F '|' '{ print $2 "-" $3 "." $4 }' | sort | uniq \
-  | while read rpm ; do
+cat "../$FPL" "../$PWFL" | awk -F '|' '{ print $2 "-" $3 "." $4 }' \
+  | sort | uniq | while read rpm ; do
   echo -n " – $rpm"
   mkdir "$rpm"
   cd "$rpm"
@@ -399,6 +723,7 @@ done
 cd ..
 }
 
+
 consolidate() {
 echo "Consolidating data…"
 
@@ -409,10 +734,12 @@ cat "$PWFL" | while read rpmline; do
   awk -F '|' -v rpm="$rpm" '$1 == rpm' "$FFL" \
   | while read rawfileline ; do
     echo "$rawfileline" | \
-      awk -F "|" '{ for (i = 2; i < NF; i++) list = list $i "|" } END { print list $NF }' \
+      awk -F "|" '{ for (i = 2; i < NF; i++) list = list $i "|" }
+                  END { print list $NF }' \
       | while read fileline ; do
       if [ "$(echo $fileline| awk -F '|' '{ print $7 }')" == "Link" ] ; then
-        source="$(awk -F '|' -v target=""$(echo $fileline| awk -F '|' '{ print $10 }')"" \
+        source="$(awk -F '|' -v target=""$(echo $fileline | \
+                                           awk -F '|' '{ print $10 }')"" \
                    '$4 == target { print $1 ; exit }' ""$FFL"" )"
       else source=""
       fi
@@ -429,6 +756,7 @@ awk -F '|' '$15 != "" { print $1 "|" $2 "|" $9 "|" $15 }' "$FL" | sort | uniq \
   done > "$FLNM"
 }
 
+
 analyse() {
 
 echo ""
@@ -437,9 +765,8 @@ echo ""
 
 echo "SRPM|RPM|File" > "$TSUM"
 
-# Arch check
-
-echo "– font files in arch packages:"
+echo -n "— "
+test_help arch-package title
 
 awk -F '|' '($13 != "Link") && ($4 != "noarch")' "$FL" > tmp/tmp.csv
 
@@ -449,64 +776,49 @@ awk -F '|' '{ print $2 "." $4 "|" $6 }' tmp/tmp.csv | sort | uniq \
                               else list=(list " "  $1    ) } END \
                 { print list }' | pretty_indent
 
-complete_csv_summary "$TSUM" tmp/tmp.csv 1 "Arch package"
-summary tmp/tmp.csv
+test_wrapup arch-package tmp/tmp.csv "$TSUM"
 
-# Install location check
 
-echo "– font files installed outside /usr/share/fonts:"
+echo -n "— "
+test_help outside-usr-share-fonts title }
 
 awk -F '|' '($13 != "Link") && ($9 !~ /^\/usr\/share\/fonts\//)' "$FL" > tmp/tmp.csv
 
 list-rpm tmp/tmp.csv
-complete_csv_summary "$TSUM" tmp/tmp.csv 2 "Outside /usr/share/fonts"
-summary tmp/tmp.csv
+test_wrapup outside-usr-share-fonts tmp/tmp.csv "$TSUM"
 
-[ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
-echo "☛ Font files need to be installed under the /usr/share/fonts root for \
-fontconfig to expose them." | pretty_indent
 
-# Mixed contents check
-
-echo "— fonts in packages that contain non-font data:"
+echo -n "— "
+test_help mixed-with-non-font-data title
 
 awk -F '|' '($13 != "Link") && ($8 != "0")' "$FL" > tmp/tmp.csv
 
 list-rpm tmp/tmp.csv
-complete_csv_summary "$TSUM" tmp/tmp.csv 3 "Mixed with non-font data"
-summary tmp/tmp.csv
+test_wrapup mixed-with-non-font-data tmp/tmp.csv "$TSUM"
 
-[ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
-echo "☛ Every font should be installable as-is without pulling in other \
-material." | pretty_indent
 
-# Metadata check
-
-echo "– fonts in packages that do not declare font metadata:"
+echo -n "— "
+test_help without-rpm-metadata title
 
 awk -F '|' '($13 != "Link") && ($6 != "M")' "$FL" > tmp/tmp.csv
 
 list-rpm tmp/tmp.csv
-complete_csv_summary "$TSUM" tmp/tmp.csv 4 "Without rpm metadata"
-summary tmp/tmp.csv
+test_wrapup without-rpm-metadata tmp/tmp.csv "$TSUM"
 
-[ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
-echo "☛ Automatic font installation relies on this metadata being present \
-to work." | pretty_indent
 
-# Naming checks
-
-echo "– fonts in packages that do not use font package naming conventions:"
+echo -n "— "
+test_help bad-rpm-naming title
 
 awk -F "|" '($13 != "Link") && \
             $2 !~ /^[0-9abcdefghijklmnopqrstuvwxyz\.-]*-fonts$/' "$FL" \
             > tmp/tmp.csv
 
 list-rpm tmp/tmp.csv
-complete_csv_summary "$TSUM" tmp/tmp.csv 5 "Bad rpm naming"
-summary tmp/tmp.csv
+test_wrapup bad-rpm-naming tmp/tmp.csv "$TSUM"
 
-echo "— fonts that declare face attributes in family names:"
+
+echo -n "— "
+test_help bad-family-naming title
 
 rm -f tmp/tmp.csv
 touch tmp/tmp.csv
@@ -545,17 +857,12 @@ awk -F "|" '{ print $10 }' tmp/tmp.csv | sort | uniq \
     echo "$family|$rpmlist"
   done | column -t -s '|' | pretty_indent
 
-complete_csv_summary "$TSUM" tmp/tmp.csv 6 "Bad family naming"
-summary tmp/tmp.csv
+test_wrapup bad-family-naming tmp/tmp.csv "$TSUM"
 
-[ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
-echo -e "☛ To be properly processed by applications face qualifiers need to \
-be declared in face names (there may be a few false positives here as some \
-common face qualifiers can be used with a different meaning in family names; \
-if that's not the case, please ask the font upstream to fix its naming)." \
-| pretty_indent
 
-echo -n "— fonts that declare non-WWS compliant faces:  "
+echo -n "— "
+test_help bad-style-naming title
+echo -n "   "
 
 #FIXME It would also be great to check if the naming is corrected by the
 #      fontconfig files shipped in the package, but this requires fixes in
@@ -607,26 +914,11 @@ awk -F "|" '{ print $10 ", " $11 }' tmp/tmp.csv | sort | uniq \
       | sort | uniq
   done | column -t -s '|' | pretty_indent
 
-complete_csv_summary "$TSUM" tmp/tmp.csv 7 "Bad face naming"
-summary tmp/tmp.csv
+test_wrapup bad-style-naming tmp/tmp.csv "$TSUM"
 
-[ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
-echo -e "☛ This WWS-like test checks if font faces use the: \n\
-“width weight slant” \n\
-naming convention. \n\
-http://blogs.msdn.com/text/attachment/2249036.ashx \n\
-(Microsoft resolves over a combined “Family Face” string, since our \
-applications use “Family” and “Face” separately this test considers “Face” \
-alone. We also reject weight abbreviations and suffixes, if a font uses them \
-check compliance manually.) \n\
-If your font is listed here please ask its upstream to fix its naming, and in \
-the meanwhile add a fontconfig rule to your package to hide the breakage (see \
-the remapping template)." | pretty_indent
 
-# Duplication checks
-
-echo "– exact file duplication (ignoring multilib):"
-echo "☛ Ignoring multilib to keep it short" | pretty_indent
+echo -n "— "
+test_help duplicated-file title
 
 awk -F '|' '{ print $15 }' "$FLNM" | sort | uniq -d \
   | while read checksum ; do
@@ -641,16 +933,15 @@ awk -F '|' '{ print $15 }' tmp/tmp.csv | uniq \
     tmp/tmp.csv | column -t -s '|' | pretty_indent
   done
 
-complete_csv_summary "$TSUM" tmp/tmp.csv 8 "Duplicated file"
-summary tmp/tmp.csv
+test_wrapup duplicated-file tmp/tmp.csv "$TSUM"
 
-echo "– font faces duplicated by different packages:"
-echo "☛ Excluding multilib and PCF fonts (because they are pretty much \
-hopeless)." | pretty_indent
+
+echo -n "— "
+test_help duplicated-face-ext title
 
 rm -f tmp/tmp.csv
 touch tmp/tmp.csv
-awk -F '|' '($10 != "") && ($11 != "") && ($12 != "PCF") && ($12 != "Type 1") \
+awk -F '|' '($10 != "") && ($11 != "") \
     { print $2 "-" $3 "." $4 "|" $10 "|" $11 }' "$FLNM" \
     | sort | uniq | awk -F '|' '{ print $2 "|" $3 }' \
     | sort | uniq -d | while read face ; do
@@ -665,20 +956,11 @@ awk -F '|' '($10 != "") && ($11 != "") && ($12 != "PCF") && ($12 != "Type 1") \
     echo "$count|$face|$packages"
   done | sort -nr | column -t -s '|' | pretty_indent
 
-complete_csv_summary "$TSUM" tmp/tmp.csv 9 "Duplicated face (ext)"
-summary tmp/tmp.csv
+test_wrapup duplicated-face-ext tmp/tmp.csv "$TSUM"
 
-[ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
-echo "☛ Face duplication wastes resources \
-infrastructure and user side. Very often an upstream that copied some fonts \
-will forget to keep them up to date, and the duplication will result in the \
-distribution of old buggy data. Even if some duplicate font files are a \
-genuine fork with different features from the original, applications won't be \
-able to select them reliably because of naming collisions. We should alway \
-ship a single version of any font face in a dedicated font package, and use \
-fontconfig or symlinks to share it accross packages." | pretty_indent
 
-echo "– font faces duplicated within a package (ignoring legacy formats):"
+echo -n "— "
+test_help duplicated-face-int title
 
 awk -F '|' '($10 != "") && ($11 != "") && ($12 != "PCF") && ($12 != "Type 1") \
     { print $2 "-" $3 "." $4 "|" $10 "|" $11 }' "$FLNM" \
@@ -692,18 +974,13 @@ awk -F '|' '($10 != "") && ($11 != "") && ($12 != "PCF") && ($12 != "Type 1") \
 awk -F '|' '{ print $2 "|" $10 "|" $11 "|" $9 }' tmp/tmp.csv \
   | column -t -s '|' | pretty_indent
 
-complete_csv_summary "$TSUM" tmp/tmp.csv 10 "Duplicated face (int)"
-summary tmp/tmp.csv
+test_wrapup duplicated-face-int tmp/tmp.csv "$TSUM"
 
-[ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
-echo "☛ Face duplication within a package is almost certainly a bug, except \
-for special symbol font families." | pretty_indent
 
-# Bad mixing checks
+echo -n "— "
+test_help family-mixing title
 
-echo "— packages that mix several font families (ignoring legacy formats):"
-
-awk -F '|' '($10 != "") && ($12 != "PCF") && ($12 != "Type 1")
+awk -F '|' '($10 != "")
     {
       rpm = $2 "-" $3 "." $4
       if ( ! family[rpm] ) { family[rpm] = $10 }
@@ -716,57 +993,39 @@ awk -F '|' '($10 != "") && ($12 != "PCF") && ($12 != "Type 1")
     done > tmp/tmp.csv
 
 list-rpm tmp/tmp.csv
-complete_csv_summary "$TSUM" tmp/tmp.csv 11 "Family mixing"
-summary tmp/tmp.csv
+test_wrapup family-mixing tmp/tmp.csv "$TSUM"
 
-[ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
-echo "☛ Reliable font autoinstallation requires shipping only one font family \
-per font package. This indicates problems in the packaging or the packaged \
-font metadata." | pretty_indent
 
-# Symlink-related checks
-
-echo "– packages that symlink font files:"
+echo -n "— "
+test_help font-linking title
 
 awk -F '|' '$13=="Link"' "$FL" > tmp/tmp.csv
 
 list-rpm tmp/tmp.csv
-complete_csv_summary "$TSUM" tmp/tmp.csv 12 "Font linking"
-summary tmp/tmp.csv
+test_wrapup font-linking tmp/tmp.csv "$TSUM"
 
-if [ $(cat tmp/tmp.csv | wc -l) -gt 0 ] ; then
-echo "    5 most symlinked packages:"
-awk -F '|' '$13=="Link" { print $17 "|" $2 "-" $3 "." $4 }' "$FL" | sort | uniq \
-| awk -F '|' '{ print $1 }' | uniq -c | sort -nr | head -5 | column -t | pretty_indent
 
-echo "☛ Symlinking font files is a way for non-font \
-packages to comply with guidelines and avoid duplicating files, but it is \
-also a symptom of missing or incomplete fontconfig support in the package. \
-Please ask upstream to use fontconfig (possibly, via a higher-level library \
-such as pangocairo)." | pretty_indent
-fi
-
-echo "– broken symlinks to font files:"
+echo -n "— "
+test_help broken-symlink title
 
 awk -F '|' '($13 == "Link") && ($17 == "")' "$FL" > tmp/tmp.csv
 awk -F '|' '{ print $9 " → " $16 "|" $2 "-" $3 "." $4  }' tmp/tmp.csv \
   | column -t -s "|" | pretty_indent
 
-complete_csv_summary "$TSUM" tmp/tmp.csv 13 "Broken symlink"
-summary tmp/tmp.csv
+test_wrapup broken-symlink tmp/tmp.csv "$TSUM"
 
-echo "– packages with fonts rpmlint errors on:"
+
+echo -n "— "
+test_help rpmlint title
 
 awk -F '|' '($13 != "Link") && ($7 != "0")' "$FL" > tmp/tmp.csv
 
 list-rpm tmp/tmp.csv
-complete_csv_summary "$TSUM" tmp/tmp.csv 14 "rpmlint"
-summary tmp/tmp.csv
+test_wrapup rpmlint tmp/tmp.csv "$TSUM"
 
 
-# Magic and other parsing checks
-
-echo "– packages with font files not identified as such by libmagic:"
+echo -n "— "
+test_help libmagic title
 
 awk -F '|' '($13 !~ /font/) && ($13 !~ /Font/) && ($13 != "Link")' "$FL" > tmp/tmp.csv
 
@@ -778,14 +1037,11 @@ awk -F '|' '{ print $2 "-" $3 "." $4 }' tmp/tmp.csv | uniq \
         { print sum "|" rpm "|(" srpm ")|" }' tmp/tmp.csv
   done | sort -nr | column -t -s '|' | pretty_indent
 
-complete_csv_summary "$TSUM" tmp/tmp.csv 15 "libmagic problem"
-summary tmp/tmp.csv
+test_wrapup libmagic tmp/tmp.csv "$TSUM"
 
-[ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
-echo "☛ Either libmagic has a bug or the files are malformed and need to be \
-fixed or dumped." | pretty_indent
 
-echo "– packages with font files fc-query can not parse:"
+echo -n "— "
+test_help fc-query title
 
 awk -F '|' '($13 != "Link") && ($12 == "")' "$FL" > tmp/tmp.csv
 
@@ -797,14 +1053,11 @@ awk -F '|' '{ print $2 "-" $3 "." $4 }' tmp/tmp.csv | uniq \
         { print sum "|" rpm "|(" srpm ")|" }' tmp/tmp.csv
   done | sort -nr | column -t -s '|' | pretty_indent
 
-complete_csv_summary "$TSUM" tmp/tmp.csv 16 "fc-query problem"
-summary tmp/tmp.csv
+test_wrapup fc-query tmp/tmp.csv "$TSUM"
 
-[ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
-echo "☛ Either fontconfig has a bug or the files are malformed and need to be \
-fixed or dumped." | pretty_indent
 
-echo "– packages with localized metadata but no English variant:"
+echo -n "— "
+test_help no-english-metadata title
 
 awk -F '|' '($12 != "") && (($10 == "") || ($11 == ""))' "$FL" > tmp/tmp.csv
 
@@ -812,14 +1065,10 @@ awk -F '|' '($12 != "") && (($10 == "") || ($11 == ""))' "$FL" > tmp/tmp.csv
 awk -F '|' '{ print $9 "|" $2 "-" $3 "." $4 }' tmp/tmp.csv \
   | column -t -s '|' | pretty_indent
 
-complete_csv_summary "$TSUM" tmp/tmp.csv 17 "No English metadata"
-summary tmp/tmp.csv
-
-[ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
-echo "☛ The font files need to be fixed to declare metadata in English too." \
-| pretty_indent
+test_wrapup no-english-metadata tmp/tmp.csv "$TSUM"
 
 }
+
 
 sum_up() {
 echo ""
@@ -850,9 +1099,10 @@ echo "☛ Bad packaging may result in arched packages or mixed content." \
 echo "– problem summary:"
 echo ""
 
-test_score "$TSUM" | pretty_indent
+test_score "$TSUM"
 
 }
+
 
 # End of function declarations
 
