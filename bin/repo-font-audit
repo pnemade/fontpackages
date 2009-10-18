@@ -90,9 +90,9 @@ complete_csv_summary() {
   awk -F '|' -v testcol="$testcol" -v testlabel="$4" \
       'FNR==1 {
        if ( testcol < NF )
-              max = NF
+              { max = NF }
             else
-              max = testcol
+              { max = testcol }
         newline = ""
         for (i = 1 ; i <= max ; i++) {
            if ( i > 1 ) newline = newline "|"
@@ -107,17 +107,17 @@ complete_csv_summary() {
       'FILENAME==t_datafile { fail[$1"|"$2"|"$9] = 1 }
        FILENAME!=t_datafile && FNR>1 {
          if ( testcol < NF )
-              max = NF
+              { max = NF }
             else
-              max = testcol
+              { max = testcol }
          line = $1 "|" $2 "|" $3
          newline = ""
          for (i = 1 ; i <= max ; i++) {
            if ( i > 1 ) newline = newline "|"
            if ( i == testcol )
-             { newline = newline fail[line] }
-           else
-             { newline = newline $i }
+               { newline = newline fail[line] }
+             else
+               { newline = newline $i }
          }
          print newline
          processed[line] = 1
@@ -207,33 +207,63 @@ test_score() {
 
 if [ $(cat "$1" | wc -l) -gt 1 ] ; then
   (
-    echo "SRPM|RPM|1|2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17"
-    awk -F '|' ' FNR>1 {
+    awk -F '|' '
+      FNR==1 {
+        max = NF
+      }
+      FNR>1 {
         id = $1 "|" $2
         fail[id] = 1
-        if ( max < NF ) { max = NF }
-        for (i = 4 ; i <= NF ; i++) {
+        for (i = 4 ; i <= max ; i++) {
           score[id"|"i] = score[id"|"i] + $i
+          totalscore[i] = totalscore[i] + $i
         }
       }
       END {
-        for ( id in fail ) {
-          newline = id
-          for (i = 4 ; i <= NF ; i++) {
-            newline = newline "|" score[id"|"i]
+        headerline = "SRPM|RPM"
+        for (i = 4 ; i <= max ; i++) {
+          if ( totalscore[i] ) { headerline  = headerline "|" i-3 }
+        }
+        print headerline
+        n = asorti(fail)
+        for (l = 1; l <= n; l++) {
+          newline = fail[l]
+          for (c = 4 ; c <= max ; c++) {
+            if ( totalscore[c] ) {
+              if ( score[fail[l]"|"c] )
+                { newline = newline "|" score[fail[l]"|"c] }
+              else
+                { newline = newline "|‧" }
+            }
           }
           print newline
         }
-    }' "$1" | sort -t '|'
+        totalline = " |Total"
+        for (i = 4 ; i <= max ; i++) {
+          if ( totalscore[i] ) { totalline = totalline "|"  totalscore[i] }
+        }
+        print totalline
+      }' "$1"
   ) | column -t -s '|'
 
  echo ""
 
- awk -F '|' 'FNR==1 {
-   for (i = 4 ; i <= NF ; i++) {
-     print "— test " i-3 ": " $i
-   }
- }' "$1" | column -t -s ':'
+  awk -F '|' '
+    FNR==1 {
+      max = NF
+      for (i = 4 ; i <= max ; i++) {
+        legend[i] = "— test " i-3 ": " $i }
+      }
+    FNR>1 {
+      for (i = 4 ; i <= max ; i++) {
+        totalscore[i] = totalscore[i] + $i
+      }
+    }
+    END {
+      for (i = 4 ; i <= max ; i++) {
+        if ( totalscore[i] ) { print legend[i] }
+      }
+    }' "$1" | column -t -s ':'
 else
   echo "⇒  None!"
 fi
