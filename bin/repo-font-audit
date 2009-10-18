@@ -633,7 +633,7 @@ cat "../$FPL" "../$PWFL" | awk -F '|' '{ print $2 "-" $3 "." $4 }' \
     rpm_file="$rpm.rpm"
   fi
   echo -ne "\b◑"
-  rpmlint_score=$(rpmlint "$rpm_file" > "../rpmlint-$rpm.txt" 2>&1 ; echo $?)
+  rpmlint_score=$(rpmlint -i "$rpm_file" > "../rpmlint-$rpm.txt" 2>&1 ; echo $?)
   rpm2cpio "$rpm_file" > "$rpm.cpio"
   echo -ne "\b◕"
   cpio --quiet -it < "$rpm.cpio" > "$rpm.lst"
@@ -1104,11 +1104,97 @@ test_score "$TSUM"
 }
 
 
+prepare_spam() {
+mkdir spam
+
+for srpm in $(awk -F '|' 'FNR>1 { print $1 }' "$TSUM" | uniq) ; do
+  mkdir "tmp/$srpm/"
+  cp -p report.txt "tmp/$srpm/repo-report.txt"
+  for file in "$FL" "$TSUM" ; do
+    awk 'FNR==1' "$file" > "tmp/$srpm/$file"
+    awk -F '|' -v srpm="$srpm" 'FNR>1 && $1==srpm' "$file" >> "tmp/$srpm/$file"
+  done
+  for rpm in $(awk -F '|' 'FNR>1 { print $2 }' "tmp/$srpm/$TSUM" | uniq) ; do
+    cp -p tmp/rpmlint-$rpm-*.txt "tmp/$srpm/"
+  done
+  cat > tmp/$srpm/message.txt << EOF
+Dear packager,
+
+At $TIMESTAMP, while scanning the $ID repository located at:
+$REPOURL
+… I have identified the following problems in your $srpm package:
+
+$(test_score "tmp/$srpm/$TSUM")
+
+Please take the appropriate measures to fix the $srpm package.
+
+I will warn you again if I find problems next time I am ran.
+
+Your friendly QA robot,
+
+-- 
+repo-font-audit
+http://fedoraproject.org/wiki/fontpackages
+EOF
+  cd tmp
+  tar cf "$srpm.tar" "$srpm"
+  cd ..
+  xz -9  "tmp/$srpm.tar"
+  mv "tmp/$srpm.tar.xz" spam
+done
+cat > spam/send-messages.sh << EOF
+#!/bin/sh
+# Send warnings to problem package owners
+# This is a bit distribution-specific, people from other distributions are
+# welcome to suggest how to make it more agnostic
+
+EMAIL="repo-font-audit <fedora-fonts-list@redhat.com>"
+REPLYTO=fedora-fonts-list@redhat.com
+
+export EMAIL REPLYTO
+
+for srpm in \\
+$(awk -F '|' 'FNR>1 { print $1 " \\" }' "$TSUM" | uniq)
+; do
+  tar -xf \$srpm.tar.xz */message.txt -O \\
+    | mutt -s "Problems detected in the \$srpm $ID package!" \\
+           -a \$srpm.tar.xz -- \$srpm-owner@fedoraproject.org
+done
+
+EOF
+chmod +x spam/send-messages.sh
+}
+
+pack_data() {
+mv spam "$SPAM"
+
+mkdir "$RES/"
+cp "$FL" "$TSUM" tmp/rpmlint-*.txt summary.txt report.txt "$RES/"
+
+mkdir "$SRES/"
+cp "$TSUM" summary.txt report.txt "$SRES/"
+
+for report in "$RES" "$SRES" "$SPAM" ; do
+  tar cf "$report.tar" "$report"
+  xz -9  "$report.tar"
+  mv "$report.tar.xz" "$ORIGDIR/"
+done
+
+cat << EOF
+1. Complete extracted data: $ORIGDIR/$RES.tar.xz
+2. Short summary: $ORIGDIR/$SRES.tar.xz
+3. Mail data: $ORIGDIR/$SPAM.tar.xz
+
+Generated using the repo-font-audit command from
+http://fedoraproject.org/wiki/fontpackages
+EOF
+}
+
 # End of function declarations
 
 [ "$#" -lt "2" ] && usage
 
-TIMESTAMP=$(date -u +%Y%m%dT%H%M%S)
+TIMESTAMP=$(date -u +%Y%m%dT%H%M%SZ)
 ID=$1
 REPOID="$1-rfa-$TIMESTAMP"
 REPOURL=$2
@@ -1123,6 +1209,7 @@ FLNM="consolidated-data-no-multilib.csv"
 TSUM="test-summary.csv"
 RES="repo-font-audit-$ID-$TIMESTAMP"
 SRES="repo-font-audit-$ID-$TIMESTAMP-short"
+SPAM="repo-font-audit-$ID-$TIMESTAMP-mail"
 
 TMPDIR=$(mktemp -d --tmpdir=/tmp $RES-XXXXXXXXXX)
 cd $TMPDIR
@@ -1140,24 +1227,9 @@ cp "$FL" "tmp/$FL"
 echo "SRPM|RPM|EVR|Arch|RPM size|RPM metadata|rpmlint score|foreign data|filename|family name|face name|format (fontconfig)|format (libmagic)|file size|checksum|symlink target|symlink provider" > "$FL"
 cat "tmp/$FL" >> "$FL"
 
-mkdir "$RES/"
-cp "$FL" "$TSUM" tmp/rpmlint-*.txt summary.txt report.txt "$RES/"
+prepare_spam
+pack_data
 
-mkdir "$SRES/"
-cp "$TSUM" summary.txt report.txt "$SRES/"
-
-for report in "$RES" "$SRES" ; do
-  tar cf "$report.tar" "$report"
-  xz -9  "$report.tar"
-  mv "$report.tar.xz" "$ORIGDIR/"
-done
-
-
-echo "1. Complete extracted data: $ORIGDIR/$RES.tar.xz"
-echo "2. Short summary: $ORIGDIR/$SRES.tar.xz"
-echo ""
-echo "Generated using the repo-font-audit command from"
-echo "http://fedoraproject.org/wiki/fontpackages"
 cd "$ORIGDIR"
 rm -fr "$TMPDIR"
 echo "♻"
