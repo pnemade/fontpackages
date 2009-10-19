@@ -1122,7 +1122,7 @@ Dear packager,
 
 At $TIMESTAMP, while scanning the $ID repository located at:
 $REPOURL
-… I have identified the following problems in your $srpm package:
+I have identified the following problems in your $srpm package:
 
 $(test_score "tmp/$srpm/$TSUM")
 
@@ -1148,10 +1148,10 @@ cat > spam/send-messages.sh << EOF
 # This is a bit distribution-specific, people from other distributions are
 # welcome to suggest how to make it more agnostic
 
-EMAIL="repo-font-audit <fedora-fonts-list@redhat.com>"
-REPLYTO=fedora-fonts-list@redhat.com
+#EMAIL="repo-font-audit <your@mail>"
+#REPLYTO=another@mail
 
-export EMAIL REPLYTO
+#export EMAIL REPLYTO
 
 for srpm in \\
 $(awk -F '|' 'FNR>1 { print $1 " \\" }' "$TSUM" | uniq)
