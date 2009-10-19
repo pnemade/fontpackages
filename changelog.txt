@@ -1,4 +1,4 @@
-Git
+1.28
      - repo-font-audit: add package maintainer spamming capabilities
      - repo-font-audit: refactor test comment system
      - repo-font-audit: make test_score() compacter
