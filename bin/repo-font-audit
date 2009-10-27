@@ -487,6 +487,32 @@ EOF
         ;;
     esac
     ;;
+  "partial-scripts")
+    case "$2" in
+      "title")
+        echo "Fonts with partial script coverage"
+        ;;
+      "help")
+        cat << EOF
+Some font files included in the package are missing only a few glyphs to be
+accepted by fontconfig as covering one or several scripts. Therefore they
+could be made useful to more people with only a little effort.
+
+To check a font file script coverage, run fc-query with FC_DEBUG=256 and
+look for lines like:
+script-id¹(number) { list-of-unicode-codepoints }
+For example “mi(2) { 1e34 1e35 }” means fontconfig will accept the tested
+file for Maori if codepoints 1e34 and 1e35 are added.
+
+If you feel fontconfig is requiring a glyph which is not strictly necessary
+for a particular script, report the problem upstream².
+
+¹ http://www.loc.gov/standards/iso639-2/php/code_list.php
+² https://bugs.freedesktop.org/enter_bug.cgi?product=fontconfig
+EOF
+        ;;
+    esac
+    ;;
   "no-english-metadata")
     case "$2" in
       "title")
@@ -653,7 +679,8 @@ cat "../$FPL" "../$PWFL" | awk -F '|' '{ print $2 "-" $3 "." $4 }' \
   cpio -idm --quiet -E "$rpm.fonts.lst" < "$rpm.cpio"
   echo -ne "\b● "
   cat "$rpm.fonts.lst" | sed 's=^\./==g' | while read file; do
-    unset target checksum type family style format
+    unset target checksum type family style format \
+          partial_scripts
     type=$(file -bzh "$file")
     case $(echo "$type" | sed 's+ (\(.*\)++g' \
                              | sed 's+ `\(.*\)++g' \
@@ -705,18 +732,25 @@ cat "../$FPL" "../$PWFL" | awk -F '|' '{ print $2 "-" $3 "." $4 }' \
     if [ "$type" != "ignored" ] ; then
       size=$(du -b "$file" | awk '{ print $1 ; exit }')
       if [ ! -h "$file" ] ; then
+        sanfile=$(echo "$file" | sed "s=/=.=g")
         checksum=$(sha256sum "$file" | awk '{ print $1 ; exit }')
-        if $(fc-query "$file" 2> /dev/null > "$file.desc") ; then
-          family=$(parse_localized_fc_query family "$file.desc")
-          style=$(parse_localized_fc_query style "$file.desc")
-          format=$(parse_localized_fc_query fontformat "$file.desc")
+        fc_file="../fc-query-$rpm-$sanfile.txt"
+        if $(FC_DEBUG=256 fc-query "$file" 2> /dev/null > "$fc_file") ; then
+          family=$(parse_localized_fc_query family "$fc_file")
+          style=$(parse_localized_fc_query style "$fc_file")
+          format=$(parse_localized_fc_query fontformat "$fc_file")
+          # fc-query only reports partial coverage for 10 glyphs or less,
+          # lowering this limit does not significantly reduce the number of
+          # flagged fonts today
+          partial_scripts=$(grep '^[a-z]\{1,4\}\(-[a-z]\{1,4\}\)\?([1-9]) \+{ \+\([a-f0-9]\{4\} \)\+}' \
+                               "$fc_file" | wc -l)
         else
           echo -ne "\bX" >&2
         fi
       fi
       file="/$file"
       echo "$rpm|$rpmlint_score|$nofont_score\
-|$file|$family|$style|$format|$type|$size|$checksum|$target" >> "../../$FFL"
+|$file|$family|$style|$format|$type|$size|$checksum|$partial_scripts|$target" >> "../../$FFL"
     fi
   done
   cd ..
@@ -742,7 +776,7 @@ cat "$PWFL" | while read rpmline; do
       | while read fileline ; do
       if [ "$(echo $fileline| awk -F '|' '{ print $7 }')" == "Link" ] ; then
         source="$(awk -F '|' -v target=""$(echo $fileline | \
-                                           awk -F '|' '{ print $10 }')"" \
+                                           awk -F '|' '{ print $11 }')"" \
                    '$4 == target { print $1 ; exit }' ""$FFL"" )"
       else source=""
       fi
@@ -1011,7 +1045,7 @@ test_wrapup font-linking tmp/tmp.csv "$TSUM"
 echo -n "— "
 test_help broken-symlink title
 
-awk -F '|' '($13 == "Link") && ($17 == "")' "$FL" > tmp/tmp.csv
+awk -F '|' '($13 == "Link") && ($18 == "")' "$FL" > tmp/tmp.csv
 awk -F '|' '{ print $9 " → " $16 "|" $2 "-" $3 "." $4  }' tmp/tmp.csv \
   | column -t -s "|" | pretty_indent
 
@@ -1057,6 +1091,15 @@ awk -F '|' '{ print $2 "-" $3 "." $4 }' tmp/tmp.csv | uniq \
   done | sort -nr | column -t -s '|' | pretty_indent
 
 test_wrapup fc-query tmp/tmp.csv "$TSUM"
+
+
+echo -n "— "
+test_help partial-scripts title
+
+awk -F '|' '($16 > 0)' "$FL" > tmp/tmp.csv
+
+list-rpm tmp/tmp.csv
+test_wrapup partial-scripts tmp/tmp.csv "$TSUM"
 
 
 echo -n "— "
@@ -1119,6 +1162,7 @@ for srpm in $(awk -F '|' 'FNR>1 { print $1 }' "$TSUM" | uniq) ; do
   done
   for rpm in $(awk -F '|' 'FNR>1 { print $2 }' "tmp/$srpm/$TSUM" | uniq) ; do
     cp -p tmp/rpmlint-$rpm-*.txt "tmp/$srpm/"
+    cp -p tmp/fc-query-$rpm-*.txt "tmp/$srpm/" 2>/dev/null
   done
   cat > tmp/$srpm/message.txt << EOF
 Dear packager,
@@ -1172,7 +1216,9 @@ pack_data() {
 mv spam "$SPAM"
 
 mkdir "$RES/"
-cp "$FL" "$TSUM" tmp/rpmlint-*.txt summary.txt report.txt "$RES/"
+cp "$FL" "$TSUM" \
+   tmp/rpmlint-*.txt tmp/fc-query-*.txt \
+   summary.txt report.txt "$RES/"
 
 mkdir "$SRES/"
 cp "$TSUM" summary.txt report.txt "$SRES/"
@@ -1229,7 +1275,7 @@ sum_up  | tee summary.txt
 sed -i "s=.$(echo -ne '\b')==g" report.txt
 
 cp "$FL" "tmp/$FL"
-echo "SRPM|RPM|EVR|Arch|RPM size|RPM metadata|rpmlint score|foreign data|filename|family name|face name|format (fontconfig)|format (libmagic)|file size|checksum|symlink target|symlink provider" > "$FL"
+echo "SRPM|RPM|EVR|Arch|RPM size|RPM metadata|rpmlint score|foreign data|filename|family name|face name|format (fontconfig)|format (libmagic)|file size|checksum|partial scripts|symlink target|symlink provider" > "$FL"
 cat "tmp/$FL" >> "$FL"
 
 prepare_spam

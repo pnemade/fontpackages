@@ -1,3 +1,5 @@
+Git
+     - repo-font-audit: check partial script coverage according to fontconfig
 1.28
      - repo-font-audit: add package maintainer spamming capabilities
      - repo-font-audit: refactor test comment system
