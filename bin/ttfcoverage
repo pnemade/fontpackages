@@ -1,0 +1,44 @@
+#!/usr/bin/perl
+# a coverage script
+# depends on Unicode::UCD and Font::TTF
+# by Martin Hosken
+# small tweaks by Nicolas Spalinger
+
+use Font::TTF::Font;
+use Unicode::UCD qw(charblocks charblock charscripts charscript);
+use Getopt::Std;
+
+getopts('s');
+
+my $blocks, $stats;
+
+if ($opt_s)
+{
+    $blocks = charscripts;
+}
+else
+{
+    $blocks = charblocks;
+}
+
+foreach (keys %{$blocks})
+{
+    foreach $r (@{$blocks->{$_}})
+    { $stats->{$_}[0] += ($r->[1] - $r->[0]) + 1; }
+}
+
+$f = Font::TTF::Font->open($ARGV[0]) || die "Can't open font $ARGV[0]";
+$cmap = $f->{'cmap'}->read->find_ms->{'val'};
+
+foreach $c (keys %{$cmap})
+{
+    $r = $opt_s ? charscript($c) : charblock($c);
+    $stats->{$r}[1]++;
+}
+
+foreach (sort keys %{$stats})
+{
+    next unless ($_ && $stats->{$_}[1]);
+    printf "%s: %d/%d (%.2f%%)\n", $_, $stats->{$_}[1], $stats->{$_}[0], $stats->{$_}[1] / $stats->{$_}[0] * 100.;
+}
+

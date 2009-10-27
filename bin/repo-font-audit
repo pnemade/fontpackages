@@ -513,6 +513,29 @@ EOF
         ;;
     esac
     ;;
+  "partial-blocks")
+    case "$2" in
+      "title")
+        echo "Fonts with partial unicode block coverage"
+        ;;
+      "help")
+        cat << EOF
+Some font files included in the package are missing only a few glyphs to
+fully cover an Unicode block. Therefore they could be made useful to more
+people with only a little effort.
+
+The Unicode consortium revises its tables regularly, and therefore a font
+may need to be extended to maintain its full coverage when a new Unicode
+revision is published¹.
+
+To check a font file unicode coverage, run the ttfcoverage command. It only
+works for modern SFNT fonts (.otf, .ttf).
+
+¹ http://www.unicode.org/charts/
+EOF
+        ;;
+    esac
+    ;;
   "no-english-metadata")
     case "$2" in
       "title")
@@ -680,7 +703,7 @@ cat "../$FPL" "../$PWFL" | awk -F '|' '{ print $2 "-" $3 "." $4 }' \
   echo -ne "\b● "
   cat "$rpm.fonts.lst" | sed 's=^\./==g' | while read file; do
     unset target checksum type family style format \
-          partial_scripts
+          partial_scripts partial_blocks
     type=$(file -bzh "$file")
     case $(echo "$type" | sed 's+ (\(.*\)++g' \
                              | sed 's+ `\(.*\)++g' \
@@ -688,12 +711,14 @@ cat "../$FPL" "../$PWFL" | awk -F '|' '{ print $2 "-" $3 "." $4 }' \
                              | sed 's+\( \)*$++g' ) in
       "TrueType font data")
         echo -n "t"
+        sfnt=true
         ;;
       "TrueType font collection data")
         echo -n "T"
         ;;
       "OpenType font data")
         echo -n "o"
+        sfnt=true
         ;;
       "X11 Portable Compiled Font data")
         echo -n "b"
@@ -734,6 +759,15 @@ cat "../$FPL" "../$PWFL" | awk -F '|' '{ print $2 "-" $3 "." $4 }' \
       if [ ! -h "$file" ] ; then
         sanfile=$(echo "$file" | sed "s=/=.=g")
         checksum=$(sha256sum "$file" | awk '{ print $1 ; exit }')
+        if [ "$type" == "TrueType font data" -o \
+             "$type" == "OpenType font data" ] ; then
+          ttfcoverage "$file" > "../unicover-$rpm-$sanfile.txt"
+          # Cut out at 10 like fc-query
+          partial_blocks=$(sed \
+            's=^\([^\:]*\):\( *\)\([0-9]\+\)/\([0-9]\+\)\( *\)(\([0-9.]\+\)%)$=\1|\3|\4|\6='\
+            "../unicover-$rpm-$sanfile.txt" |\
+            awk -F '|' '($3-$2 > 0) && ($3-$2 < 10) { print $1 ": " $3-$2 }' | wc -l)
+        fi
         fc_file="../fc-query-$rpm-$sanfile.txt"
         if $(FC_DEBUG=256 fc-query "$file" 2> /dev/null > "$fc_file") ; then
           family=$(parse_localized_fc_query family "$fc_file")
@@ -750,7 +784,7 @@ cat "../$FPL" "../$PWFL" | awk -F '|' '{ print $2 "-" $3 "." $4 }' \
       fi
       file="/$file"
       echo "$rpm|$rpmlint_score|$nofont_score\
-|$file|$family|$style|$format|$type|$size|$checksum|$partial_scripts|$target" >> "../../$FFL"
+|$file|$family|$style|$format|$type|$size|$checksum|$partial_scripts|$partial_blocks|$target" >> "../../$FFL"
     fi
   done
   cd ..
@@ -776,7 +810,7 @@ cat "$PWFL" | while read rpmline; do
       | while read fileline ; do
       if [ "$(echo $fileline| awk -F '|' '{ print $7 }')" == "Link" ] ; then
         source="$(awk -F '|' -v target=""$(echo $fileline | \
-                                           awk -F '|' '{ print $11 }')"" \
+                                           awk -F '|' '{ print $12 }')"" \
                    '$4 == target { print $1 ; exit }' ""$FFL"" )"
       else source=""
       fi
@@ -1045,7 +1079,7 @@ test_wrapup font-linking tmp/tmp.csv "$TSUM"
 echo -n "— "
 test_help broken-symlink title
 
-awk -F '|' '($13 == "Link") && ($18 == "")' "$FL" > tmp/tmp.csv
+awk -F '|' '($13 == "Link") && ($19 == "")' "$FL" > tmp/tmp.csv
 awk -F '|' '{ print $9 " → " $16 "|" $2 "-" $3 "." $4  }' tmp/tmp.csv \
   | column -t -s "|" | pretty_indent
 
@@ -1100,6 +1134,16 @@ awk -F '|' '($16 > 0)' "$FL" > tmp/tmp.csv
 
 list-rpm tmp/tmp.csv
 test_wrapup partial-scripts tmp/tmp.csv "$TSUM"
+
+
+echo -n "— "
+test_help partial-blocks title
+
+awk -F '|' '($17 > 0)' "$FL" > tmp/tmp.csv
+
+list-rpm tmp/tmp.csv
+test_wrapup partial-blocks tmp/tmp.csv "$TSUM"
+
 
 
 echo -n "— "
@@ -1162,7 +1206,8 @@ for srpm in $(awk -F '|' 'FNR>1 { print $1 }' "$TSUM" | uniq) ; do
   done
   for rpm in $(awk -F '|' 'FNR>1 { print $2 }' "tmp/$srpm/$TSUM" | uniq) ; do
     cp -p tmp/rpmlint-$rpm-*.txt "tmp/$srpm/"
-    cp -p tmp/fc-query-$rpm-*.txt "tmp/$srpm/" 2>/dev/null
+    cp -p tmp/fc-query-$rpm-*.txt \
+          tmp/unicover-$rpm-*.txt "tmp/$srpm/" 2>/dev/null
   done
   cat > tmp/$srpm/message.txt << EOF
 Dear packager,
@@ -1217,7 +1262,7 @@ mv spam "$SPAM"
 
 mkdir "$RES/"
 cp "$FL" "$TSUM" \
-   tmp/rpmlint-*.txt tmp/fc-query-*.txt \
+   tmp/rpmlint-*.txt tmp/fc-query-*.txt tmp/unicover-*.txt \
    summary.txt report.txt "$RES/"
 
 mkdir "$SRES/"
@@ -1275,7 +1320,7 @@ sum_up  | tee summary.txt
 sed -i "s=.$(echo -ne '\b')==g" report.txt
 
 cp "$FL" "tmp/$FL"
-echo "SRPM|RPM|EVR|Arch|RPM size|RPM metadata|rpmlint score|foreign data|filename|family name|face name|format (fontconfig)|format (libmagic)|file size|checksum|partial scripts|symlink target|symlink provider" > "$FL"
+echo "SRPM|RPM|EVR|Arch|RPM size|RPM metadata|rpmlint score|foreign data|filename|family name|face name|format (fontconfig)|format (libmagic)|file size|checksum|partial scripts||partial blocks|symlink target|symlink provider" > "$FL"
 cat "tmp/$FL" >> "$FL"
 
 prepare_spam
