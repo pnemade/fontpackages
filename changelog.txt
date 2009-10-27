@@ -1,4 +1,4 @@
-Git
+1.29
      - repo-font-audit: add (filtered) fontlint checks
      - repo-font-audit: check partial block coverage according to ttfcoverage
      - repo-font-audit: check partial script coverage according to fontconfig
