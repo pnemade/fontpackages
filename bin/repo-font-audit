@@ -236,7 +236,7 @@ EOF
       "help")
         cat << EOF
 Please do not mix font files with non-font data in packages. Fonts are
-usually useful outside of the package that embeds them and should be
+usually useful outside of the package that deploys them and should be
 installable without pulling in other material.
 EOF
         ;;
@@ -272,7 +272,7 @@ EOF
   "bad-family-naming")
     case "$2" in
       "title")
-        echo "Fonts that declare face attributes in family names"
+        echo "Fonts that declare style attributes in family names"
         ;;
       "help")
         cat << EOF
@@ -283,9 +283,9 @@ heuristics are brittle and pose interoperability problems with applications
 that do not use them.
 
 If one your font files is listed here please ask its upstream to fix its
-naming so it does not need further reprocessing. And in the meanwhile patch
-it (if it is available in sfd form) or add a fontconfig rule to your
-package to hide the problem².
+naming so it respects WWS conventions and does not need further
+reprocessing. And in the meanwhile patch it (if it is available in sfd
+format) or add a fontconfig rule to your package to hide the problem².
 
 There may be a few false positives in this test as some common face
 qualifiers can be used with a different meaning in family names.
@@ -303,11 +303,11 @@ EOF
   "bad-style-naming")
     case "$2" in
       "title")
-        echo "Font faces that declare non-WWS compliant styles"
+        echo "Fonts that declare non-WWS compliant styles"
         ;;
       "help")
         cat << EOF
-This WWS-like test checks if font faces use the “Width Weight Slant” naming
+This WWS-like test checks if font styles use the “Width Weight Slant” naming
 convention¹. As noted by Adobe the CSS family model is less than ideal, but
 it's a standard and applications expect it².
 
@@ -342,7 +342,7 @@ EOF
   "duplicated-file")
     case "$2" in
       "title")
-        echo "Exact font file duplication"
+        echo "Exact font duplication"
         ;;
       "help")
         cat << EOF
@@ -445,7 +445,7 @@ EOF
   "rpmlint")
     case "$2" in
       "title")
-        echo "Packages with fonts rpmlint errors on"
+        echo "Fonts rpmlint errors on"
         ;;
       "help")
         cat << EOF
@@ -458,7 +458,7 @@ EOF
   "libmagic")
     case "$2" in
       "title")
-        echo "Packages with font files not identified as such by libmagic"
+        echo "Fonts not identified as such by libmagic"
         ;;
       "help")
         cat << EOF
@@ -473,13 +473,16 @@ EOF
   "fc-query")
     case "$2" in
       "title")
-        echo "Packages with font files that fc-query can not parse"
+        echo "Fonts fc-query can not parse"
         ;;
       "help")
         cat << EOF
 fc-query could not parse some font files in the package. The files may be
 malformed and in need of fixing, or fc-query has a bug (in that case,
 please report the problem so it is fixed).
+
+Any font file rejected by fc-query will be useless in fontconfig and most
+applications. If it can not be fixed drop it.
 EOF
         ;;
     esac
@@ -487,7 +490,7 @@ EOF
   "no-english-metadata")
     case "$2" in
       "title")
-        echo "Packages with localized metadata but no English variant"
+        echo "Fonts with localized metadata but no English variant"
         ;;
       "help")
         cat << EOF
@@ -1181,7 +1184,9 @@ for report in "$RES" "$SRES" "$SPAM" ; do
 done
 
 cat << EOF
-1. Complete extracted data: $ORIGDIR/$RES.tar.xz
+
+Audit complete!
+1. Extracted data: $ORIGDIR/$RES.tar.xz
 2. Short summary: $ORIGDIR/$SRES.tar.xz
 3. Mail data: $ORIGDIR/$SPAM.tar.xz
 
