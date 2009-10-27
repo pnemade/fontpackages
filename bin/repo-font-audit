@@ -639,20 +639,20 @@ cat "../$FPL" "../$PWFL" | awk -F '|' '{ print $2 "-" $3 "." $4 }' \
   rpmlint_score=$(rpmlint -i "$rpm_file" > "../rpmlint-$rpm.txt" 2>&1 ; echo $?)
   rpm2cpio "$rpm_file" > "$rpm.cpio"
   echo -ne "\b◕"
-  cpio --quiet -it < "$rpm.cpio" > "$rpm.lst"
-  nofont_score=$(cat "$rpm.lst" \
-    | grep -v "^./usr/share/fonts" \
-    | grep -v "^./usr/share/fontconfig/conf.avail/" \
-    | grep -v "^./etc/fonts/conf.d/" \
-    | grep -v "^./usr/share/doc/" \
-    | grep -v "^./etc/X11/fontpath.d/" \
+  cat "$rpm.cpio" | cpio --quiet -it > "$rpm.lst"
+  nofont_score=$(cat "$rpm.lst" | sed 's=^\./=/=g' \
+    | grep -v "^/usr/share/fonts" \
+    | grep -v "^/usr/share/fontconfig/conf.avail/" \
+    | grep -v "^/etc/fonts/conf.d/" \
+    | grep -v "^/usr/share/doc/" \
+    | grep -v "^/etc/X11/fontpath.d/" \
     | grep -viE '\.((ttf)|(ttc)|(otf)|(pfa)|(pfb)|(bdf)|(pcf)|(pcf\.gz))$' |wc -l)
   cat "$rpm.lst" \
     | grep -iE '\.((ttf)|(ttc)|(otf)|(pfa)|(pfb)|(bdf)|(pcf)|(pcf\.gz))$' \
     > "$rpm.fonts.lst"
   cpio -idm --quiet -E "$rpm.fonts.lst" < "$rpm.cpio"
   echo -ne "\b● "
-  cat "$rpm.fonts.lst" | while read file; do
+  cat "$rpm.fonts.lst" | sed 's=^\./==g' | while read file; do
     unset target checksum type family style format
     type=$(file -bzh "$file")
     case $(echo "$type" | sed 's+ (\(.*\)++g' \
@@ -714,7 +714,7 @@ cat "../$FPL" "../$PWFL" | awk -F '|' '{ print $2 "-" $3 "." $4 }' \
           echo -ne "\bX" >&2
         fi
       fi
-      file=$(echo "$file" | sed "s+^./+/+g")
+      file="/$file"
       echo "$rpm|$rpmlint_score|$nofont_score\
 |$file|$family|$style|$format|$type|$size|$checksum|$target" >> "../../$FFL"
     fi
