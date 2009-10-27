@@ -536,6 +536,27 @@ EOF
         ;;
     esac
     ;;
+  "fontlint")
+    case "$2" in
+      "title")
+        echo "Fonts that do not pass fontlint sanity checks"
+        ;;
+      "help")
+        cat << EOF
+Fontforge's fontlint¹ test suite found problems in some files included in
+the package. Those problems may not be obvious and only manifest as strange
+behaviour in specific applications (making them hard to debug). For that
+reason it is recommanded to report those problems upstream and get them
+fixed, even if the font file seems to work fine most of the time.
+
+You can ask help about specific fontlint errors on:
+https://lists.sourceforge.net/lists/listinfo/fontforge-users
+
+¹ http://fontforge.sourceforge.net/fontlint.html
+EOF
+        ;;
+    esac
+    ;;
   "no-english-metadata")
     case "$2" in
       "title")
@@ -703,7 +724,7 @@ cat "../$FPL" "../$PWFL" | awk -F '|' '{ print $2 "-" $3 "." $4 }' \
   echo -ne "\b● "
   cat "$rpm.fonts.lst" | sed 's=^\./==g' | while read file; do
     unset target checksum type family style format \
-          partial_scripts partial_blocks
+          partial_scripts partial_blocks fontlint
     type=$(file -bzh "$file")
     case $(echo "$type" | sed 's+ (\(.*\)++g' \
                              | sed 's+ `\(.*\)++g' \
@@ -759,6 +780,23 @@ cat "../$FPL" "../$PWFL" | awk -F '|' '{ print $2 "-" $3 "." $4 }' \
       if [ ! -h "$file" ] ; then
         sanfile=$(echo "$file" | sed "s=/=.=g")
         checksum=$(sha256sum "$file" | awk '{ print $1 ; exit }')
+        LANG=C fontlint "$file" 2>&1 | awk 'FNR>3' > \
+          "../fontlint-$rpm-$sanfile.txt"
+        # Fontlint is too anal and would fail almost every font in the repo if
+        # we let it; filter errors so frequent apps must be able to cope with
+        # them. Please give feedback if you feel the filtering could be improved
+        fontlint=$(sed \
+        '/^The glyph named .* is mapped to/,/But its name indicates it should be mapped to.*/d' \
+          "../fontlint-$rpm-$sanfile.txt" \
+          | sed \
+          "/^  A glyph uses at least one, but not all, anchor classes in a subtable/,/   (I'm not absolutely sure this is an error)/d" \
+          | sed \
+          | sed \
+          "/^The following table(s) in the font have been ignored by FontForge/,/  Ignoring 'DSIG' digital signature table/d" \
+          | grep -v "^Validation.*\.\.\." \
+          | grep -v "^  Missing Points at Extrema" \
+          | grep -v "^  Self Intersecting Glyph" \
+          | grep -v "^  Wrong Direction" | wc -l)
         if [ "$type" == "TrueType font data" -o \
              "$type" == "OpenType font data" ] ; then
           ttfcoverage "$file" > "../unicover-$rpm-$sanfile.txt"
@@ -784,7 +822,7 @@ cat "../$FPL" "../$PWFL" | awk -F '|' '{ print $2 "-" $3 "." $4 }' \
       fi
       file="/$file"
       echo "$rpm|$rpmlint_score|$nofont_score\
-|$file|$family|$style|$format|$type|$size|$checksum|$partial_scripts|$partial_blocks|$target" >> "../../$FFL"
+|$file|$family|$style|$format|$type|$size|$checksum|$partial_scripts|$partial_blocks|$fontlint|$target" >> "../../$FFL"
     fi
   done
   cd ..
@@ -810,7 +848,7 @@ cat "$PWFL" | while read rpmline; do
       | while read fileline ; do
       if [ "$(echo $fileline| awk -F '|' '{ print $7 }')" == "Link" ] ; then
         source="$(awk -F '|' -v target=""$(echo $fileline | \
-                                           awk -F '|' '{ print $12 }')"" \
+                                           awk -F '|' '{ print $13 }')"" \
                    '$4 == target { print $1 ; exit }' ""$FFL"" )"
       else source=""
       fi
@@ -1079,7 +1117,7 @@ test_wrapup font-linking tmp/tmp.csv "$TSUM"
 echo -n "— "
 test_help broken-symlink title
 
-awk -F '|' '($13 == "Link") && ($19 == "")' "$FL" > tmp/tmp.csv
+awk -F '|' '($13 == "Link") && ($20 == "")' "$FL" > tmp/tmp.csv
 awk -F '|' '{ print $9 " → " $16 "|" $2 "-" $3 "." $4  }' tmp/tmp.csv \
   | column -t -s "|" | pretty_indent
 
@@ -1145,6 +1183,14 @@ list-rpm tmp/tmp.csv
 test_wrapup partial-blocks tmp/tmp.csv "$TSUM"
 
 
+echo -n "— "
+test_help fontlint title
+
+awk -F '|' '($18 > 0)' "$FL" > tmp/tmp.csv
+
+list-rpm tmp/tmp.csv
+test_wrapup fontlint tmp/tmp.csv "$TSUM"
+
 
 echo -n "— "
 test_help no-english-metadata title
@@ -1207,7 +1253,8 @@ for srpm in $(awk -F '|' 'FNR>1 { print $1 }' "$TSUM" | uniq) ; do
   for rpm in $(awk -F '|' 'FNR>1 { print $2 }' "tmp/$srpm/$TSUM" | uniq) ; do
     cp -p tmp/rpmlint-$rpm-*.txt "tmp/$srpm/"
     cp -p tmp/fc-query-$rpm-*.txt \
-          tmp/unicover-$rpm-*.txt "tmp/$srpm/" 2>/dev/null
+          tmp/unicover-$rpm-*.txt \
+          tmp/fontlint-$rpm-*.txt "tmp/$srpm/" 2>/dev/null
   done
   cat > tmp/$srpm/message.txt << EOF
 Dear packager,
@@ -1262,7 +1309,7 @@ mv spam "$SPAM"
 
 mkdir "$RES/"
 cp "$FL" "$TSUM" \
-   tmp/rpmlint-*.txt tmp/fc-query-*.txt tmp/unicover-*.txt \
+   tmp/rpmlint-*.txt tmp/fc-query-*.txt tmp/unicover-*.txt tmp/fontlint-*.txt \
    summary.txt report.txt "$RES/"
 
 mkdir "$SRES/"
@@ -1320,7 +1367,7 @@ sum_up  | tee summary.txt
 sed -i "s=.$(echo -ne '\b')==g" report.txt
 
 cp "$FL" "tmp/$FL"
-echo "SRPM|RPM|EVR|Arch|RPM size|RPM metadata|rpmlint score|foreign data|filename|family name|face name|format (fontconfig)|format (libmagic)|file size|checksum|partial scripts||partial blocks|symlink target|symlink provider" > "$FL"
+echo "SRPM|RPM|EVR|Arch|RPM size|RPM metadata|rpmlint score|foreign data|filename|family name|face name|format (fontconfig)|format (libmagic)|file size|checksum|partial scripts|partial blocks|fontlint|symlink target|symlink provider" > "$FL"
 cat "tmp/$FL" >> "$FL"
 
 prepare_spam
