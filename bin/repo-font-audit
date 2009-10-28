@@ -791,7 +791,6 @@ cat "../$FPL" "../$PWFL" | awk -F '|' '{ print $2 "-" $3 "." $4 }' \
           | sed \
           "/^  A glyph uses at least one, but not all, anchor classes in a subtable/,/   (I'm not absolutely sure this is an error)/d" \
           | sed \
-          | sed \
           "/^The following table(s) in the font have been ignored by FontForge/,/  Ignoring 'DSIG' digital signature table/d" \
           | grep -v "^Validation.*\.\.\." \
           | grep -v "^  Missing Points at Extrema" \
@@ -1054,8 +1053,7 @@ awk -F '|' '($10 != "") && ($11 != "") \
     { print $2 "-" $3 "." $4 "|" $10 "|" $11 }' "$FLNM" \
     | sort | uniq | awk -F '|' '{ print $2 "|" $3 }' \
     | sort | uniq -d | while read face ; do
-    awk -F '|' -v face="$face" \
-        '($12 != "PCF") && (($10 "|" $11)==face)' "$FLNM" > tmp/tmp1.csv
+    awk -F '|' -v face="$face" (($10 "|" $11)==face)' "$FLNM" > tmp/tmp1.csv
     packages=$(awk -F '|' '{ if ( $6 == "M" ) print "[" $2 "]" ; \
                              else print $2 }' tmp/tmp1.csv \
                | sort | uniq | while read rpm ; do echo -n "$rpm " ; done)
