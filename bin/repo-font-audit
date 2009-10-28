@@ -1118,7 +1118,7 @@ echo -n "— "
 test_help broken-symlink title
 
 awk -F '|' '($13 == "Link") && ($20 == "")' "$FL" > tmp/tmp.csv
-awk -F '|' '{ print $9 " → " $16 "|" $2 "-" $3 "." $4  }' tmp/tmp.csv \
+awk -F '|' '{ print $9 " → " $19 "|" $2 "-" $3 "." $4  }' tmp/tmp.csv \
   | column -t -s "|" | pretty_indent
 
 test_wrapup broken-symlink tmp/tmp.csv "$TSUM"
