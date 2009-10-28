@@ -499,8 +499,8 @@ accepted by fontconfig as covering one or several scripts. Therefore they
 could be made useful to more people with only a little effort.
 
 To check a font file script coverage, run fc-query with FC_DEBUG=256 and
-look for lines like:
-script-id¹(number) { list-of-unicode-codepoints }
+look for lines like: script-id¹(number) { list-of-unicode-codepoints }
+
 For example “mi(2) { 1e34 1e35 }” means fontconfig will accept the tested
 file for Maori if codepoints 1e34 and 1e35 are added.
 
