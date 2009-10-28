@@ -1053,7 +1053,7 @@ awk -F '|' '($10 != "") && ($11 != "") \
     { print $2 "-" $3 "." $4 "|" $10 "|" $11 }' "$FLNM" \
     | sort | uniq | awk -F '|' '{ print $2 "|" $3 }' \
     | sort | uniq -d | while read face ; do
-    awk -F '|' -v face="$face" (($10 "|" $11)==face)' "$FLNM" > tmp/tmp1.csv
+    awk -F '|' -v face="$face" '($10 "|" $11)==face' "$FLNM" > tmp/tmp1.csv
     packages=$(awk -F '|' '{ if ( $6 == "M" ) print "[" $2 "]" ; \
                              else print $2 }' tmp/tmp1.csv \
                | sort | uniq | while read rpm ; do echo -n "$rpm " ; done)
