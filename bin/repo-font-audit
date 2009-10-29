@@ -520,16 +520,16 @@ EOF
         ;;
       "help")
         cat << EOF
-Some font files included in the package are missing only a few glyphs to
-fully cover an Unicode block. Therefore they could be made useful to more
-people with only a little effort.
+Some font files included in the package are missing only a few glyphs
+to fully cover an Unicode block. Therefore they could be made useful to
+more people with only a little effort.
 
-The Unicode consortium revises its tables regularly, and therefore a font
-may need to be extended to maintain its full coverage when a new Unicode
-revision is published¹.
+The Unicode consortium revises its tables regularly, and therefore a
+font may need to be extended to maintain its full coverage when a new
+Unicode revision is published¹.
 
-To check a font file unicode coverage, run the ttfcoverage command. It only
-works for modern SFNT fonts (.otf, .ttf).
+To check a font file unicode coverage, run the ttfcoverage command. It
+only works for modern SFNT fonts (.otf, .ttf).
 
 ¹ http://www.unicode.org/charts/
 EOF
@@ -543,11 +543,12 @@ EOF
         ;;
       "help")
         cat << EOF
-Fontforge's fontlint¹ test suite found problems in some files included in
-the package. Those problems may not be obvious and only manifest as strange
-behaviour in specific applications (making them hard to debug). For that
-reason it is recommanded to report those problems upstream and get them
-fixed, even if the font file seems to work fine most of the time.
+Fontforge's fontlint¹ test suite found problems in some files included
+in the package. Those problems may not be obvious and only manifest as
+strange behaviour in specific applications (making them hard to debug).
+For that reason it is recommanded to report those problems upstream and
+get them fixed, even if the font file seems to work fine most of the
+time.
 
 You can ask help about specific fontlint errors on:
 https://lists.sourceforge.net/lists/listinfo/fontforge-users
