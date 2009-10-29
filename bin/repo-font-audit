@@ -277,9 +277,10 @@ EOF
       "help")
         cat << EOF
 To be properly processed by applications face qualifiers need to be
-declared in style names. Some application stacks such as Microsoft WPF will
-try to workaround bad font naming with dynamic renaming heuristics¹, but
-heuristics are brittle and pose interoperability problems with applications
+declared in style names. Some application stacks such as Microsoft WPF
+will try to workaround bad font naming with dynamic renaming
+heuristics¹, but heuristics are brittle and pose interoperability
+problems with applications
 that do not use them.
 
 If one your font files is listed here please ask its upstream to fix its
@@ -294,8 +295,8 @@ qualifiers can be used with a different meaning in family names.
   http://blogs.adobe.com/typblography/typotechnica2007/Font%20names.pdf
   http://blogs.adobe.com/typblography/atypi2006/CSS%20&%20OT%2015.pdf
 ² cf the “fontpackages” remapping template; unfortunately this workaround
-won't fix problems for non-fontconfig applications, or when interoperating
-with other systems.
+  won't fix problems for non-fontconfig applications, or when
+  interoperating with other systems.
 EOF
         ;;
     esac
@@ -307,25 +308,26 @@ EOF
         ;;
       "help")
         cat << EOF
-This WWS-like test checks if font styles use the “Width Weight Slant” naming
-convention¹. As noted by Adobe the CSS family model is less than ideal, but
-it's a standard and applications expect it².
+This WWS-like test checks if font styles use the “Width Weight Slant”
+naming convention¹. As noted by Adobe the CSS family model is less than
+ideal, but it's a standard and applications expect it².
 
 Since our applications do not workaround bad font naming with dynamic
-renaming heuristics, achieving consistent style naming that can be used in
-CSS/web oriented applications requires fixing face naming directly in the
-font files. For this reason we test font style naming separately from font
-family naming, and do not support complex weight abbreviations and
-suffixes³.
+renaming heuristics, achieving consistent style naming that can be used
+in CSS/web oriented applications requires fixing face naming directly
+in the font files. For this reason we test font style naming separately
+from font family naming, and do not support complex weight abbreviations
+and suffixes³.
 
-To pass this test make sure your style names do not include any qualifier
-not defined in the WWS whitepaper¹, and that “Width”, “Weight” or “Slant”
-are defined only once. Any other qualifier belongs in the font family name.
+To pass this test make sure your style names do not include any
+qualifier not defined in the WWS whitepaper¹, and that “Width”, “Weight”
+or “Slant” are defined only once. Any other qualifier belongs in the
+font family name.
 
 If one your font files is listed here please ask its upstream to fix its
-naming so it does not need further reprocessing. And in the meanwhile patch
-it (if it is available in sfd form) or add a fontconfig rule to your
-package to hide the problem⁴.
+naming so it does not need further reprocessing. And in the meanwhile
+patch it (if it is available in sfd form) or add a fontconfig rule to
+your package to hide the problem⁴.
 
 ¹ http://blogs.msdn.com/text/attachment/2249036.ashx
   http://blogs.adobe.com/typblography/typotechnica2007/Font%20names.pdf
@@ -364,8 +366,8 @@ Face duplication wastes resources infrastructure and user side.
 Very often an upstream that copied some fonts will forget to keep them up
 to date, and the duplication will result in the distribution of old buggy
 data. Even when some duplicated font faces are a genuine fork with
-different features from the original, applications won't be able to select
-them reliably because of naming collision.
+different features from the original, applications won't be able to 
+select them reliably because of naming collision.
 
 We should always ship only one version of a font face in the repository,
 and use fontconfig or symlinks to share it accross packages.
@@ -413,11 +415,12 @@ EOF
         ;;
       "help")
         cat << EOF
-Symlinking is a way for non-font packages to avoid duplicating font files,
-but it is also a symptom of missing or incomplete fontconfig support.
-Fontconfig has been our default font system for a long time, and accessing
-fonts by other means will cause behaviour inconsistencies and many other
-problems (since fontconfig is much more than a file locating library)
+Symlinking is a way for non-font packages to avoid duplicating font
+files, but it is also a symptom of missing or incomplete fontconfig
+support. Fontconfig has been our default font system for a long time,
+and accessing fonts by other means will cause behaviour inconsistencies
+and many other problems (since fontconfig is much more than a file
+locating library).
 
 Please ask the package upstream to add fontconfig support to their code
 (possibly, via a higher-level library such as pango-cairo).
@@ -494,9 +497,9 @@ EOF
         ;;
       "help")
         cat << EOF
-Some font files included in the package are missing only a few glyphs to be
-accepted by fontconfig as covering one or several scripts. Therefore they
-could be made useful to more people with only a little effort.
+Some font files included in the package are missing only a few glyphs to
+be accepted by fontconfig as covering one or several scripts. Therefore
+they could be made useful to more people with only a little effort.
 
 To check a font file script coverage, run fc-query with FC_DEBUG=256 and
 look for lines like: script-id¹(number) { list-of-unicode-codepoints }
@@ -504,8 +507,8 @@ look for lines like: script-id¹(number) { list-of-unicode-codepoints }
 For example “mi(2) { 1e34 1e35 }” means fontconfig will accept the tested
 file for Maori if codepoints 1e34 and 1e35 are added.
 
-If you feel fontconfig is requiring a glyph which is not strictly necessary
-for a particular script, report the problem upstream².
+If you feel fontconfig is requiring a glyph which is not strictly
+necessary for a particular script, report the problem upstream².
 
 ¹ http://www.loc.gov/standards/iso639-2/php/code_list.php
 ² https://bugs.freedesktop.org/enter_bug.cgi?product=fontconfig
@@ -566,8 +569,8 @@ EOF
       "help")
         cat << EOF
 Some font files in the package declare localized metadata, but do not
-include an English variant. They need to be fixed to also declare metadata
-in English.
+include an English variant. They need to be fixed to also declare
+metadata in English.
 EOF
         ;;
     esac
