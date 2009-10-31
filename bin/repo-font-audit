@@ -200,10 +200,12 @@ case "$1" in
   "arch-package")
     case "$2" in
       "title")
-        echo "Fonts in arch packages"
+        echo "Error: fonts in arch packages"
         ;;
       "help")
         cat << EOF
+Packager task
+
 Fonts are not arch-specific; please make sure they are deployed in noarch
 packages.
 EOF
@@ -213,14 +215,16 @@ EOF
   "outside-usr-share-fonts")
     case "$2" in
       "title")
-        echo "Fonts deployed outside /usr/share/fonts"
+        echo "Error: fonts deployed outside /usr/share/fonts"
         ;;
       "help")
         cat << EOF
+Packager task
+
 The standard location for font files is under the /usr/share/fonts root
 (default fontconfig setting). Please simplify the work of font utilities
 and use it exclusively. It is always possible to symlink font files
-somewhere else on the filesystem if an application requires it.
+somewhere else on the file-system if an application requires it.
 
 If you fear exposing your font files in fontconfig will cause problems,
 please work with the fontconfig maintainers to resolve them.
@@ -231,10 +235,12 @@ EOF
   "mixed-with-non-font-data")
     case "$2" in
       "title")
-        echo "Fonts in packages that contain non-font data"
+        echo "Error: fonts in packages that contain non-font data"
         ;;
       "help")
         cat << EOF
+Packager task
+
 Please do not mix font files with non-font data in packages. Fonts are
 usually useful outside of the package that deploys them and should be
 installable without pulling in other material.
@@ -245,10 +251,12 @@ EOF
   "without-rpm-metadata")
     case "$2" in
       "title")
-        echo "Fonts in packages that do not declare font metadata"
+        echo "Error: fonts in packages that do not declare font metadata"
         ;;
       "help")
         cat << EOF
+Packager task
+
 Font-specific rpm metadata is required for automatic font installation to
 work. If you apply our font packaging templates, it will be generated at
 package creation time.
@@ -259,10 +267,12 @@ EOF
   "bad-rpm-naming")
     case "$2" in
       "title")
-        echo "Fonts in packages that do not respect font naming conventions"
+        echo "Warning: fonts in packages that do not respect font naming conventions"
         ;;
       "help")
         cat << EOF
+Packager task
+
 Please respect font package naming conventions and provide consistent
 packages to users. Some scripts may depend on strict package naming.
 EOF
@@ -272,24 +282,35 @@ EOF
   "bad-family-naming")
     case "$2" in
       "title")
-        echo "Fonts that declare style attributes in family names"
+        echo "Warning: fonts that declare style attributes in family names"
         ;;
       "help")
         cat << EOF
-To be properly processed by applications face qualifiers need to be
-declared in style names. Some application stacks such as Microsoft WPF
-will try to workaround bad font naming with dynamic renaming
-heuristics¹, but heuristics are brittle and pose interoperability
-problems with applications
-that do not use them.
+Font upstream task, with packager workarounds
+
+This test checks if font family names do not include WWS “Width
+(Stretch)”, “Weight”, “Slope (Slant/Style)” face qualifiers¹. To be
+properly processed by applications those qualifiers need to be declared in
+style names.
+
+Since *nix applications do not workaround bad font naming with dynamic
+renaming heuristics (unlike Microsoft WPF), achieving consistent naming
+requires fixing it directly in the font files. For this reason we test
+font family naming separately from font style naming.
+
+To pass this test make sure font names do not include any “Width
+(Stretch)”, “Weight”, “Slope (Slant/Style)” qualifier defined in the WWS
+whitepaper¹.
+
 
 If one your font files is listed here please ask its upstream to fix its
 naming so it respects WWS conventions and does not need further
-reprocessing. And in the meanwhile patch it (if it is available in sfd
-format) or add a fontconfig rule to your package to hide the problem².
+reprocessing. (There may be a few false positives in this test as some
+common face qualifiers can be used with a different meaning in family
+names.)
 
-There may be a few false positives in this test as some common face
-qualifiers can be used with a different meaning in family names.
+Packager workaround: patch the file (if it is available in .sfd format),
+or add a fontconfig rule to your package to hide the problem².
 
 ¹ http://blogs.msdn.com/text/attachment/2249036.ashx
   http://blogs.adobe.com/typblography/typotechnica2007/Font%20names.pdf
@@ -304,30 +325,34 @@ EOF
   "bad-style-naming")
     case "$2" in
       "title")
-        echo "Fonts that declare non-WWS compliant styles"
+        echo "Warning: fonts that declare non-WWS compliant styles"
         ;;
       "help")
         cat << EOF
-This WWS-like test checks if font styles use the “Width Weight Slant”
-naming convention¹. As noted by Adobe the CSS family model is less than
-ideal, but it's a standard and applications expect it².
+Font upstream task, with packager workarounds
 
-Since our applications do not workaround bad font naming with dynamic
-renaming heuristics, achieving consistent style naming that can be used
-in CSS/web oriented applications requires fixing face naming directly
-in the font files. For this reason we test font style naming separately
-from font family naming, and do not support complex weight abbreviations
-and suffixes³.
+This WWS-like test checks if font styles use the WWS “Width (Stretch)”,
+“Weight”, “Slope (Slant/Style)” naming convention¹. As noted by Adobe² the
+W3C CSS font family model is less than ideal, but it is a standard and
+applications expect it.
 
-To pass this test make sure your style names do not include any
-qualifier not defined in the WWS whitepaper¹, and that “Width”, “Weight”
-or “Slant” are defined only once. Any other qualifier belongs in the
-font family name.
+Since *nix applications do not workaround bad font naming with dynamic
+renaming heuristics (unlike Microsoft WPF), achieving consistent naming
+requires fixing it directly in the font files. For this reason we test
+font style naming separately from font family naming, and do not support
+complex weight abbreviations and suffixes³.
+
+To pass this test make sure style names do not include any qualifier not
+defined in the WWS white-paper¹, and that “Width (Stretch)”, “Weight”,
+“Slope (Slant/Style)” are defined only once. Any other face qualifier
+belongs in the font family name.
 
 If one your font files is listed here please ask its upstream to fix its
-naming so it does not need further reprocessing. And in the meanwhile
-patch it (if it is available in sfd form) or add a fontconfig rule to
-your package to hide the problem⁴.
+naming so it respects WWS conventions and does and does not need further
+reprocessing.
+
+Packager workaround: patch the file (if it is available in .sfd format),
+or add a fontconfig rule to your package to hide the problem⁴.
 
 ¹ http://blogs.msdn.com/text/attachment/2249036.ashx
   http://blogs.adobe.com/typblography/typotechnica2007/Font%20names.pdf
@@ -344,12 +369,32 @@ EOF
   "duplicated-file")
     case "$2" in
       "title")
-        echo "Exact font duplication"
+        echo "Error: exact font duplication"
         ;;
       "help")
         cat << EOF
+Packager task, eventual upstream task
+
 Several packages duplicate font files with the same checksum. This
-needlessly wastes resources.
+needlessly wastes resources infrastructure and user side  and makes font
+maintenance problematic.
+
+A repository should always include only one version of a font file.
+
+This test can not discriminate between packages and identity the correct
+owner of the font files. His maintainer will be blamed with others. If
+you're not him it is therefore unfriendly not to fix this error as soon as
+you can.
+
+It is always possible to reuse a font file packaged separately by adding a
+dependency on the other package providing it, and accessing the font
+through fontconfig.
+
+If an application can not use fontconfig today this is a serious bug that
+should be reported to the application upstream. Please ask it to add
+fontconfig support to their code (possibly, via a higher-level library
+such as pango-cairo). However it can workarounded by the packager with
+symlinks (that will need maintenance).
 EOF
         ;;
     esac
@@ -357,20 +402,52 @@ EOF
   "duplicated-face-ext")
     case "$2" in
       "title")
-        echo "Font faces duplicated by different packages"
+        echo "Error: font faces duplicated by different packages"
         ;;
       "help")
         cat << EOF
-Face duplication wastes resources infrastructure and user side.
+Packager task, eventual upstream task
 
-Very often an upstream that copied some fonts will forget to keep them up
-to date, and the duplication will result in the distribution of old buggy
-data. Even when some duplicated font faces are a genuine fork with
-different features from the original, applications won't be able to 
-select them reliably because of naming collision.
+Several packages duplicate font files with the same face name. This
+needlessly wastes resources infrastructure and user side and makes font
+maintenance problematic:
 
-We should always ship only one version of a font face in the repository,
-and use fontconfig or symlinks to share it accross packages.
+1. Very often an upstream that copied some fonts will forget to keep them
+up to date, and the duplication will result in the distribution of old
+buggy data.
+
+2. Shipping the same font in different formats is also problematic:
+different font formats have different features, and are processed by
+different font libraries. It is almost impossible to create a font in
+multiple formats that will all behave the same. Users hate fonts that do
+not behave consistently everywhere.
+
+3. Most of our applications use fontconfig to access fonts, and fontconfig
+uses font names to identify files. Naming collisions make font selection
+unreliable. So even genuine forks with different features from the
+original are a problem if not renamed.
+
+A repository should always include only one version of a font face.
+
+This test can not discriminate between packages and identity the correct
+owner of the font face. His maintainer will be blamed with others. If
+you're not him it is therefore unfriendly not to fix this error as soon as
+you can.
+
+It is always possible to reuse a font file packaged separately by adding a
+dependency on the other package providing it, and accessing the font
+through fontconfig.
+
+If an application can not use fontconfig today this is a serious bug that
+should be reported to the application upstream. Please ask it to add
+fontconfig support to their code (possibly, via a higher-level library
+such as pango-cairo). However it can workarounded by the packager with
+symlinks (that will need maintenance).
+
+If an application can not use a modern font format and forces the
+re-packaging in an older format of an exiting font this is an application
+bug that should be reported to the application upstream. In that case
+these is no good solution possible baring the fixing of the application.
 EOF
         ;;
     esac
@@ -378,16 +455,34 @@ EOF
   "duplicated-face-int")
     case "$2" in
       "title")
-        echo "Font faces duplicated within a package"
+        echo "Warning: font faces duplicated within a package"
         ;;
       "help")
         cat << EOF
-Face duplication within a package is almost certainly a bug, except for
-special symbol font families.
+Packager or upstream task
 
-Fonts that were split because of the limitations of legacy font formats
+Face duplication within a package is almost certainly a bug (usually,
+mis-naming in one of the font files), except for special symbol font
+families.
+
+1. Fonts that were split because of the limitations of legacy font formats
 (PCF, Type 1…) should be converted to modern OpenType (TT, CFF or bitmap)
 containers.
+
+2. Shipping the same font in different formats is problematic: different
+font formats have different features, and are processed by different font
+libraries. It is almost impossible to create a font in multiple formats
+that will all behave the same. Users hate fonts that do not behave
+consistently everywhere.
+
+3. Most of our applications use fontconfig to access fonts, and fontconfig
+uses font names to identify files. Naming collisions make font selection
+unreliable.
+
+If an application can not use a modern font format and forces the
+re-packaging in an older format of an exiting font this is an application
+bug that should be reported to the application upstream. In that case
+these is no good solution possible baring the fixing of the application.
 EOF
         ;;
     esac
@@ -395,12 +490,14 @@ EOF
   "family-mixing")
     case "$2" in
       "title")
-        echo "Packages that mix different font families"
+        echo "Error: packages that mix different font families"
         ;;
       "help")
         cat << EOF
-Reliable font auto-installation requires shipping only one font family
-per font package.
+Packager task
+
+Reliable font auto-installation requires shipping only one font family per
+font package.
 
 (If you've remapped some font names at the fontconfig level your package
 may appear here pending some fontconfig fixes upstream is aware of).
@@ -411,19 +508,22 @@ EOF
   "font-linking")
     case "$2" in
       "title")
-        echo "Font linking"
+        echo "Warning: font linking"
         ;;
       "help")
         cat << EOF
-Symlinking is a way for non-font packages to avoid duplicating font
-files, but it is also a symptom of missing or incomplete fontconfig
-support. Fontconfig has been our default font system for a long time,
-and accessing fonts by other means will cause behaviour inconsistencies
-and many other problems (since fontconfig is much more than a file
-locating library).
+Upstream task
 
-Please ask the package upstream to add fontconfig support to their code
-(possibly, via a higher-level library such as pango-cairo).
+Symlinking is a way for non-font packages to avoid duplicating font files,
+but it is also a symptom of missing or incomplete fontconfig support.
+Fontconfig has been our default font system for a long time, and accessing
+fonts by other means will cause behaviour inconsistencies and many other
+problems (since fontconfig can be used to change the behaviour of a font).
+
+If an application can not use fontconfig today this is a serious bug that
+should be reported to the application upstream. Please ask it to add
+fontconfig support to their code (possibly, via a higher-level library
+such as pango-cairo).
 EOF
         ;;
     esac
@@ -431,15 +531,19 @@ EOF
   "broken-symlink")
     case "$2" in
       "title")
-        echo "Broken symlinks to font files"
+        echo "Error: broken symlinks to font files"
         ;;
       "help")
         cat << EOF
-The symlinked font file has moved, been renamed, or the symlink was never
-properly set up.
+Packager and upstream task
 
-You can avoid the hassle of maintaining font file symlinks by asking the
-package upstream to add fontconfig support to their code (possibly, via a
+The symlinked font file has moved, been renamed, or the symlink was never
+properly set up. You need to change the symlink.
+
+Symlinking requires maintenance and is only necessary when an application
+lacks fontconfig support. If an application can not use fontconfig today
+this is a serious bug that should be reported to the application upstream.
+Please ask it to add fontconfig support to their code (possibly, via a
 higher-level library such as pango-cairo).
 EOF
         ;;
@@ -448,12 +552,14 @@ EOF
   "rpmlint")
     case "$2" in
       "title")
-        echo "Fonts rpmlint errors on"
+        echo "Error: rpmlint"
         ;;
       "help")
         cat << EOF
-Check rpmlint output to fix those packages (using the -i flag if you
-don't understand it).
+Packager task
+
+Check rpmlint output to fix the listed packages (using the -i flag if you
+don't understand rpmlint messages).
 EOF
         ;;
     esac
@@ -461,14 +567,17 @@ EOF
   "libmagic")
     case "$2" in
       "title")
-        echo "Fonts not identified as such by libmagic"
+        echo "Warning: fonts not identified as such by libmagic"
         ;;
       "help")
         cat << EOF
+Upstream task
+
 libmagic could not identify some files with font-like extensions in the
 package. The files may be malformed and in need of fixing, or they use a
-font extension when they should not, or libmagic has a bug (in that case,
-please report the problem so it is fixed).
+font extension when they should not, or libmagic has a bug.
+
+Please relay the problem to the appropriate upstream to get it fixed.
 EOF
         ;;
     esac
@@ -476,16 +585,19 @@ EOF
   "fc-query")
     case "$2" in
       "title")
-        echo "Fonts fc-query can not parse"
+        echo "Error: fonts fc-query can not parse"
         ;;
       "help")
         cat << EOF
+Upstream task
+
 fc-query could not parse some font files in the package. The files may be
-malformed and in need of fixing, or fc-query has a bug (in that case,
-please report the problem so it is fixed).
+malformed and in need of fixing, or fc-query has a bug.
 
 Any font file rejected by fc-query will be useless in fontconfig and most
-applications. If it can not be fixed drop it.
+applications. If it can not be fixed drop it
+
+Please relay the problem to the appropriate upstream to get it fixed.
 EOF
         ;;
     esac
@@ -493,22 +605,41 @@ EOF
   "partial-scripts")
     case "$2" in
       "title")
-        echo "Fonts with partial script coverage"
+        echo "Suggestion: fonts with partial script coverage"
         ;;
       "help")
         cat << EOF
-Some font files included in the package are missing only a few glyphs to
-be accepted by fontconfig as covering one or several scripts. Therefore
-they could be made useful to more people with only a little effort.
+Font upstream task
 
-To check a font file script coverage, run fc-query with FC_DEBUG=256 and
-look for lines like: script-id¹(number) { list-of-unicode-codepoints }
+Some font files included in the package are missing a few glyphs to be
+accepted by fontconfig as covering one or several scripts. Therefore they
+could be made useful to more people with only a little effort.
 
-For example “mi(2) { 1e34 1e35 }” means fontconfig will accept the tested
-file for Maori if codepoints 1e34 and 1e35 are added.
+Many scripts differ by only a few glyphs and it is unfortunately common
+for font authors not to notice they stopped just short of full support for
+some of them.
 
-If you feel fontconfig is requiring a glyph which is not strictly
-necessary for a particular script, report the problem upstream².
+To check a font file script coverage, run:
+  $ FC_DEBUG=256 fc-query font-file
+and look for lines like:
+  script-id¹(number) { list-of-unicode-codepoints }
+
+For example
+  “mi(2) { 1e34 1e35 }”
+means fontconfig will accept the tested file for Maori if codepoints 1e34
+and 1e35 are added.
+
+fontconfig is used by a lot of applications on many systems so ignoring
+its opinion on a font is a mistake.
+
+Please relay the incomplete coverage report to the font upstream.
+
+P.S.
+Of course fontconfig is not perfect either so it may require a glyph for a
+script when it should not. In that case, please report the problem to
+fontconfig upstream:
+https://bugs.freedesktop.org/enter_bug.cgi?product=fontconfig
+against the “orth” component.
 
 ¹ http://www.loc.gov/standards/iso639-2/php/code_list.php
 ² https://bugs.freedesktop.org/enter_bug.cgi?product=fontconfig
@@ -519,20 +650,24 @@ EOF
   "partial-blocks")
     case "$2" in
       "title")
-        echo "Fonts with partial unicode block coverage"
+        echo "Suggestion: fonts with partial unicode block coverage"
         ;;
       "help")
         cat << EOF
-Some font files included in the package are missing only a few glyphs
-to fully cover an Unicode block. Therefore they could be made useful to
-more people with only a little effort.
+Font upstream task
 
-The Unicode consortium revises its tables regularly, and therefore a
-font may need to be extended to maintain its full coverage when a new
-Unicode revision is published¹.
+Some font files included in the package are missing only a few glyphs to
+fully cover an Unicode block. Therefore they could be made useful to more
+people with only a little effort.
 
-To check a font file unicode coverage, run the ttfcoverage command. It
-only works for modern SFNT fonts (.otf, .ttf).
+The Unicode consortium revises its tables regularly. A font may need to be
+extended to maintain full coverage of a block when a new Unicode standard
+revision is published¹.
+
+To check the unicode coverage of a font, run the ttfcoverage command. (It
+only works for modern .otf or .ttf fonts).
+
+Please relay the incomplete coverage report to the font upstream.
 
 ¹ http://www.unicode.org/charts/
 EOF
@@ -542,19 +677,22 @@ EOF
   "fontlint")
     case "$2" in
       "title")
-        echo "Fonts that do not pass fontlint sanity checks"
+        echo "Warning: fonts that do not pass fontlint sanity checks"
         ;;
       "help")
         cat << EOF
-Fontforge's fontlint¹ test suite found problems in some files included
-in the package. Those problems may not be obvious and only manifest as
+Font upstream task
+
+Fontforge's fontlint¹ test suite found problems in some files included in
+the package. Those problems may not be obvious and only manifest as
 strange behaviour in specific applications (making them hard to debug).
 For that reason it is recommanded to report those problems upstream and
-get them fixed, even if the font file seems to work fine most of the
-time.
+get them fixed, even if the font file seems to work fine most of the time.
 
 You can ask help about specific fontlint errors on:
 https://lists.sourceforge.net/lists/listinfo/fontforge-users
+
+Please relay the problem report to the font upstream.
 
 ¹ http://fontforge.sourceforge.net/fontlint.html
 EOF
@@ -564,13 +702,20 @@ EOF
   "no-english-metadata")
     case "$2" in
       "title")
-        echo "Fonts with localized metadata but no English variant"
+        echo "Warning: fonts with localized metadata but no English variant"
         ;;
       "help")
         cat << EOF
+Font upstream task
+
 Some font files in the package declare localized metadata, but do not
-include an English variant. They need to be fixed to also declare
-metadata in English.
+include an English variant. They need to be fixed to also declare metadata
+in English, so it can be used in technical declarations such as CSS rules.
+(Sometimes font do include English metadata, but under another language
+label. There is no way for applications or for this test to guess some
+metadata is mislabeled).
+
+Please relay the problem report to the font upstream.
 EOF
         ;;
     esac
@@ -1234,7 +1379,7 @@ stats tmp/tmp.csv
 echo "☛ Bad packaging may result in arched packages or mixed content." \
 | pretty_indent
 
-echo "– problem summary:"
+echo "– errors, warnings and suggestions:"
 echo ""
 
 test_score "$TSUM"
@@ -1261,15 +1406,19 @@ for srpm in $(awk -F '|' 'FNR>1 { print $1 }' "$TSUM" | uniq) ; do
   cat > tmp/$srpm/message.txt << EOF
 Dear packager,
 
-At $TIMESTAMP, while scanning the $ID repository located at:
+At $TIMESTAMP, your $srpm package failed one or more of the tests
+I was performing on the $ID repository located at:
 $REPOURL
-I have identified the following problems in your $srpm package:
+
+Errors, warnings and suggestions:
 
 $(test_score "tmp/$srpm/$TSUM")
 
-Please take the appropriate measures to fix the $srpm package.
 
-I will warn you again if I find problems next time I am ran.
+(full test data is attached to this message for your convenience)
+
+Please take the appropriate measures to fix the $srpm package. I will
+warn you again if it is still necessary next time I am ran.
 
 Your friendly QA robot,
 
@@ -1298,7 +1447,7 @@ for srpm in \\
 $(awk -F '|' 'FNR>1 { print $1 " \\" }' "$TSUM" | uniq)
 ; do
   tar -xf \$srpm.tar.xz */message.txt -O \\
-    | mutt -s "Problems detected in the \$srpm $ID package!" \\
+    | mutt -s "[RFA] Your \$srpm $ID package did not pass QA!" \\
            -a \$srpm.tar.xz -- \$srpm-owner@fedoraproject.org
   sleep 5
 done
