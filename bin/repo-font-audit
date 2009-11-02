@@ -1475,7 +1475,9 @@ done
 
 cat << EOF
 
-Audit complete!
+Audit complete! Number of items processed:
+$(summary "$FL")
+
 1. Extracted data: $ORIGDIR/$RES.tar.xz
 2. Short summary: $ORIGDIR/$SRES.tar.xz
 3. Mail data: $ORIGDIR/$SPAM.tar.xz
