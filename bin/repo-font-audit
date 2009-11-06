@@ -817,14 +817,14 @@ fi
 
 
 collect() {
-echo "Searching for packages with font metadata…"
+echo "▶▶▶ Searching for packages with font metadata…"
 repoquery --repofrompath=$REPOID,$REPOURL --repoid=$REPOID \
           --qf "%{sourcerpm}|%{name}|%{epoch}:%{version}-%{release}|%{arch}|%{packagesize}" \
           --whatprovides "font(*)" --quiet \
           | sed 's=^\([^|]\+\?\)\-\([^-|]\+\?\)\-\([^-|]\+\?\)|=\1|=g' \
           | sort | uniq > "$FPL"
 
-echo "Searching for packages that include files with common font extensions…"
+echo "▶▶▶ Searching for packages that include files with common font extensions…"
 repoquery --repofrompath=$REPOID,$REPOURL --repoid=$REPOID \
           --qf "%{sourcerpm}|%{name}|%{epoch}:%{version}-%{release}|%{arch}|%{packagesize}" \
           -f '*.ttf' -f '*.otf' -f '*.ttc' \
@@ -838,7 +838,7 @@ if [ $(cat "$FPL" "$PWFL" | wc -l) -eq 0 ] ; then
   exit
 fi
 
-echo "Inspecting packages:"
+echo "▶▶▶ Inspecting packages:"
 rm -f "$FFL"
 cd "tmp"
 cat "../$FPL" "../$PWFL" | awk -F '|' '{ print $2 "-" $3 "." $4 }' \
@@ -982,7 +982,7 @@ cd ..
 
 
 consolidate() {
-echo "Consolidating data…"
+echo "▶▶▶ Consolidating data…"
 
 rm -f "$FL"
 cat "$PWFL" | while read rpmline; do
@@ -1017,7 +1017,7 @@ awk -F '|' '$15 != "" { print $1 "|" $2 "|" $9 "|" $15 }' "$FL" | sort | uniq \
 analyse() {
 
 echo ""
-echo "Problem report:"
+echo "▶▶▶ Conducting tests…"
 echo ""
 
 echo "SRPM|RPM|File" > "$TSUM"
@@ -1355,7 +1355,7 @@ test_wrapup partial-blocks tmp/tmp.csv "$TSUM"
 
 sum_up() {
 echo ""
-echo "Statistics:"
+echo "▶▶▶ Audit results:"
 echo ""
 
 echo "– packages that declare font metadata:"
@@ -1509,7 +1509,7 @@ done
 
 cat << EOF
 
-Audit complete! Number of items processed:
+▶▶▶ Audit complete! Number of items processed:
 $(summary "$FL")
 
 1. Extracted data: $ORIGDIR/$RES.tar.xz
