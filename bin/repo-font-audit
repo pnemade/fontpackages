@@ -940,7 +940,7 @@ cat "../$FPL" "../$PWFL" | awk -F '|' '{ print $2 "-" $3 "." $4 }' \
           | sed \
           "/^  A glyph uses at least one, but not all, anchor classes in a subtable/,/   (I'm not absolutely sure this is an error)/d" \
           | sed \
-          "/^The following table(s) in the font have been ignored by FontForge/,/  Ignoring 'DSIG' digital signature table/d" \
+          "/^The following table(s) in the font have been ignored by FontForge/,/  Ignoring /d" \
           | grep -v "^Validation.*\.\.\." \
           | grep -v "^  Missing Points at Extrema" \
           | grep -v "^  Self Intersecting Glyph" \
