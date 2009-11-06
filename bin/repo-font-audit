@@ -1466,7 +1466,7 @@ EOF
   xz -9  "tmp/$srpm.tar"
   mv "tmp/$srpm.tar.xz" spam
 done
-9cat > spam/send-messages.sh << EOF
+cat > spam/send-messages.sh << EOF
 #!/bin/sh
 # Send warnings to problem package owners
 # This is a bit distribution-specific, people from other distributions are
