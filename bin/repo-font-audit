@@ -934,17 +934,37 @@ cat "../$FPL" "../$PWFL" | awk -F '|' '{ print $2 "-" $3 "." $4 }' \
         # Fontlint is too anal and would fail almost every font in the repo if
         # we let it; filter errors so frequent apps must be able to cope with
         # them. Please give feedback if you feel the filtering could be improved
-        fontlint=$(sed \
-        '/^The glyph named .* is mapped to/,/But its name indicates it should be mapped to.*/d' \
-          "../fontlint-$rpm-$sanfile.txt" \
-          | sed \
-          "/^  A glyph uses at least one, but not all, anchor classes in a subtable/,/   (I'm not absolutely sure this is an error)/d" \
-          | sed \
-          "/^The following table(s) in the font have been ignored by FontForge/,/  Ignoring /d" \
-          | grep -v "^Validation.*\.\.\." \
-          | grep -v "^  Missing Points at Extrema" \
-          | grep -v "^  Self Intersecting Glyph" \
-          | grep -v "^  Wrong Direction" | wc -l)
+        fontlint=$(cat "../fontlint-$rpm-$sanfile.txt" \
+          | awk -F "|" '
+              NR==1               { result = $0 }
+              NR>1 && $1 !~ /^  / { result = result "\n" $0 }
+              NR>1 && $1  ~ /^  / { gsub("^  ", "|",$1)
+                                    result = result $0 }
+              END { print result }' \
+          | awk -F "|" '
+              $1 ~ /Validation/ {
+                  l=2
+                  while (l<NF) {
+                    print $l
+                    l++
+                  }
+                  print $NF
+                }
+              $1 !~ /Validation/ { print }' \
+          | awk -F "|" '
+              NR==1              { result = $0 }
+              NR>1 && $1 !~ /^ / { result = result "\n" $0 }
+              NR>1 && $1  ~ /^ / { gsub("^ ", "|",$1)
+                                   result = result $0 }
+              END { print result }' \
+          | grep -v "^The following table(s) in the font have been ignored by FontForge" \
+          | grep -v "^The glyph named .* is mapped to .*But its name indicates it should be mapped to .*." \
+          | grep -v "^A glyph uses at least one, but not all, anchor classes in a subtable" \
+          | grep -v "^This font contains both a .* table and a .* table." \
+          | grep -v "^Missing Points at Extrema" \
+          | grep -v "^Self Intersecting Glyph" \
+          | grep -v "^Wrong Direction" \
+          | wc -l)
         if [ "$type" == "TrueType font data" -o \
              "$type" == "OpenType font data" ] ; then
           ttfcoverage "$file" > "../unicover-$rpm-$sanfile.txt"
