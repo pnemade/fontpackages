@@ -1535,8 +1535,8 @@ for srpm in $(awk -F '|' 'FNR>1 { print $1 }' "$TSUM" | uniq) ; do
   cat > tmp/$srpm/message.txt << EOF
 Dear packager,
 
-At $TIMESTAMP, your $srpm package failed one or more of the tests
-I was performing on the $ID repository located at:
+At $TIMESTAMP, your “$srpm” package failed one or more of the tests
+I was performing on the “$ID” repository located at:
 $REPOURL
 
 There are three different reasons that may cause this message:
