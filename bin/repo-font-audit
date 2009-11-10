@@ -41,7 +41,7 @@ parse_localized_fc_query() {
     # We could hide problems by reporting the first label regardless of its
     # language. But this is an audit script — we do not hide problems
     echo "$fieldstring" |  awk -F "|" '{ print $1 }'
-    if [ "$fieldstring" == "" ] ; then  echo -ne "\b×" >&2 ; fi
+    if [ "$fieldstring" == "" ] ; then  echo -ne "\b‽" >&2 ; fi
   else
     echo $(echo $fieldstring | awk -F "|" '{ print $1 }')
   fi
@@ -544,6 +544,48 @@ EOF
         ;;
     esac
     ;;
+  "core-fonts")
+    case "$2" in
+      "title")
+        echo "Warning: core fonts use"
+        ;;
+      "help")
+        cat << EOF
+Upstream task
+
+This package accesses font through the X11 Core protocol.
+
+Numerous longstanding problems with this mode of access, and a design that
+could not scale to modern font needs lead the (then XFree86) team to
+deprecate it in favour of fontconfig (née xft). Adoption was quick and by
+2003 it was clear fontconfig was the new standard¹. Nowadays fontconfig is
+widely used², including on non Linux/Unix platforms.
+
+While X11 Core access has been kept on life-support this font system is
+not activelly maintained today. The font library it depends on is slowly
+shrinking, as it was created in a period of different legal and technical
+requirements², and there is no one to update the font files when a problem
+is found³. Therefore, projects are advised to migrate before the situation
+reaches a critical stage.
+
+Fontconfig has been our default font system for a long time, and accessing
+fonts by other means will cause behaviour inconsistencies and many other
+problems (since fontconfig can be used to change the behaviour of a font).
+
+If an application can not use fontconfig today this is a serious bug that
+should be reported to the application upstream. Please ask it to add
+fontconfig support to their code (possibly, via a higher-level library
+such as pango-cairo).
+
+
+¹ http://xfree86.org/pipermail/forum/2003-March/000799.html
+² Screen technology changed, encoding standard (Unicode) changed, legal
+reviews became more comprehensive, etc.
+³ Leaving culling the only solution.
+EOF
+        ;;
+    esac
+    ;;
   "font-linking")
     case "$2" in
       "title")
@@ -555,6 +597,7 @@ Upstream task
 
 Symlinking is a way for non-font packages to avoid duplicating font files,
 but it is also a symptom of missing or incomplete fontconfig support.
+
 Fontconfig has been our default font system for a long time, and accessing
 fonts by other means will cause behaviour inconsistencies and many other
 problems (since fontconfig can be used to change the behaviour of a font).
@@ -819,30 +862,56 @@ fi
 collect() {
 echo "▶▶▶ Searching for packages with font metadata…"
 repoquery --repofrompath=$REPOID,$REPOURL --repoid=$REPOID \
-          --qf "%{sourcerpm}|%{name}|%{epoch}:%{version}-%{release}|%{arch}|%{packagesize}" \
+          --qf "%{sourcerpm}|%{name}|%{epoch}:%{version}-%{release}|%{arch}|%{packagesize}|M" \
           --whatprovides "font(*)" --quiet \
+          | sort | uniq \
           | sed 's=^\([^|]\+\?\)\-\([^-|]\+\?\)\-\([^-|]\+\?\)|=\1|=g' \
-          | sort | uniq > "$FPL"
+          > "$FPL"
 
 echo "▶▶▶ Searching for packages that include files with common font extensions…"
 repoquery --repofrompath=$REPOID,$REPOURL --repoid=$REPOID \
-          --qf "%{sourcerpm}|%{name}|%{epoch}:%{version}-%{release}|%{arch}|%{packagesize}" \
+          --qf "%{sourcerpm}|%{name}|%{epoch}:%{version}-%{release}|%{arch}|%{packagesize}|E" \
           -f '*.ttf' -f '*.otf' -f '*.ttc' \
           -f '*.pfb' -f '*.pfa' \
           -f '*.pcf.gz' -f '*.pcf' -f '*.bdf' --quiet \
+          | sort | uniq \
           | sed 's=^\([^|]\+\?\)\-\([^-|]\+\?\)\-\([^-|]\+\?\)|=\1|=g' \
-          | sort | uniq > "$PWFL"
+          > "$PWFL"
 
-if [ $(cat "$FPL" "$PWFL" | wc -l) -eq 0 ] ; then
+echo "▶▶▶ Searching for packages that use the core X11 protocol…"
+repoquery --repofrompath=$REPOID,$REPOURL --repoid=$REPOID \
+          --qf "%{sourcerpm}|%{name}|%{epoch}:%{version}-%{release}|%{arch}|%{packagesize}|X" \
+          --whatrequires 'libX11.so*' \
+          | sort | uniq \
+          | sed 's=^\([^|]\+\?\)\-\([^-|]\+\?\)\-\([^-|]\+\?\)|=\1|=g' \
+          > "$XPL"
+
+if [ $(cat "$FPL" "$PWFL" "$XPL" | wc -l) -eq 0 ] ; then
   echo "Nothing to do!"
   exit
 fi
 
+cat "$FPL" "$PWFL" "$XPL" \
+  | awk -F '|' '
+      { tag[$1 "|" $2 "|" $3 "|" $4 "|" $5] = tag[$1 "|" $2 "|" $3 "|" $4 "|" $5] $6 "," }
+      END {
+        n =  asorti(tag,rpm)
+        for (l = 1; l <= n; l++) {
+          sub(/,$/, "", tag[rpm[l]])
+          print rpm[l] "|" tag[rpm[l]]
+        }
+      }' > "tmp/$FL.1"
+
+
 echo "▶▶▶ Inspecting packages:"
-rm -f "$FFL"
 cd "tmp"
-cat "../$FPL" "../$PWFL" | awk -F '|' '{ print $2 "-" $3 "." $4 }' \
-  | sort | uniq | while read rpm ; do
+rm -f "$FL.2"
+
+cat "$FL.1" | while read line ; do
+  rpm=$(echo $line | awk -F '|' '{ print $2 "-" $3 "." $4 }')
+  rpmline=$(echo $line | awk -F '|' '{ print $1 "|" $2 "|" $3 "|" $4 "|" $5 }')
+  echo $line | cut -d "|" -f 6 | grep -q "M" \
+    && metadata="M" || metadata=""
   echo -n " – $rpm"
   mkdir "$rpm"
   cd "$rpm"
@@ -860,18 +929,39 @@ cat "../$FPL" "../$PWFL" | awk -F '|' '{ print $2 "-" $3 "." $4 }' \
   echo -ne "\b◕"
   cat "$rpm.cpio" | cpio --quiet -it > "$rpm.lst"
   nofont_score=$(cat "$rpm.lst" | sed 's=^\./=/=g' \
-    | grep -v "^/usr/share/fonts" \
-    | grep -v "^/usr/share/fontconfig/conf.avail/" \
-    | grep -v "^/etc/fonts/conf.d/" \
-    | grep -v "^/usr/share/doc/" \
-    | grep -v "^/etc/X11/fontpath.d/" \
-    | grep -viE '\.((ttf)|(ttc)|(otf)|(pfa)|(pfb)|(bdf)|(pcf)|(pcf\.gz))$' |wc -l)
-  cat "$rpm.lst" \
-    | grep -iE '\.((ttf)|(ttc)|(otf)|(pfa)|(pfb)|(bdf)|(pcf)|(pcf\.gz))$' \
-    > "$rpm.fonts.lst"
-  cpio -idm --quiet -E "$rpm.fonts.lst" < "$rpm.cpio"
+    | grep -viE -e "^/usr/share/fonts" \
+                -e "^/usr/share/fontconfig/conf.avail/" \
+                -e "^/etc/fonts/conf.d/" \
+                -e "^/usr/share/doc/" \
+                -e "^/etc/X11/fontpath.d/" \
+                -e '\.((ttf)|(ttc)|(otf)|(pfa)|(pfb)|(bdf)|(pcf)|(pcf\.gz))$' \
+    | wc -l)
+  if $(echo $line | cut -d "|" -f 6 | grep -q "E") ; then
+    cat "$rpm.lst" \
+      | grep -iE '\.((ttf)|(ttc)|(otf)|(pfa)|(pfb)|(bdf)|(pcf)|(pcf\.gz))$' \
+      > "$rpm.fonts.lst"
+    cpio -idm --quiet -E "$rpm.fonts.lst" < "$rpm.cpio"
+  fi
+  if $(echo $line | cut -d "|" -f 6 | grep -q "X") ; then
+    cat "$rpm.lst" \
+      | grep -i -e "^./sbin/" \
+                -e "^./usr/sbin/" \
+                -e "^./usr/kerberos/sbin" \
+                -e "^./bin/" \
+                -e "^./usr/bin/" \
+                -e "^./usr/kerberos/bin/" \
+                -e "^./lib.*/" \
+                -e "^./usr/lib.*/" \
+                -e "^./opt/" \
+                -e "^./usr/X11R6/" \
+                -e "^./usr/games/" \
+                -e "^./usr/local/" \
+      > "$rpm.bin.lst"
+    cpio -idm --quiet -E "$rpm.bin.lst" < "$rpm.cpio"
+  fi
   echo -ne "\b● "
-  cat "$rpm.fonts.lst" | sed 's=^\./==g' | while read file; do
+  [ -r "$rpm.fonts.lst" ] && cat "$rpm.fonts.lst" | sed 's=^\./==g' \
+    | while read file; do
     unset target checksum type family style format \
           partial_scripts partial_blocks fontlint
     type=$(file -bzh "$file")
@@ -908,7 +998,7 @@ cat "../$FPL" "../$PWFL" | awk -F '|' '{ print $2 "-" $3 "." $4 }' \
         echo -n "-"
         ;;
       "PostScript document text"|"8086 relocatable")
-        echo -n "x" >&2
+        echo -n "!" >&2
         ;;
       "symbolic link to"|"broken symbolic link to")
         target=$(readlink -m "$file" | sed "s+^$PWD++g")
@@ -925,10 +1015,10 @@ cat "../$FPL" "../$PWFL" | awk -F '|' '{ print $2 "-" $3 "." $4 }' \
         ;;
     esac
     if [ "$type" != "ignored" ] ; then
-      size=$(du -b "$file" | awk '{ print $1 ; exit }')
+      size=$(du -b "$file" | cut -f 1)
       if [ ! -h "$file" ] ; then
         sanfile=$(echo "$file" | sed "s=/=.=g")
-        checksum=$(sha256sum "$file" | awk '{ print $1 ; exit }')
+        checksum=$(sha256sum "$file" | cut -f 1)
         LANG=C fontlint "$file" 2>&1 | awk 'FNR>3' > \
           "../fontlint-$rpm-$sanfile.txt"
         # Fontlint is too anal and would fail almost every font in the repo if
@@ -985,12 +1075,26 @@ cat "../$FPL" "../$PWFL" | awk -F '|' '{ print $2 "-" $3 "." $4 }' \
           partial_scripts=$(grep '^[a-z]\{1,4\}\(-[a-z]\{1,4\}\)\?([1-9]) \+{ \+\([a-f0-9]\{4\} \)\+}' \
                                "$fc_file" | wc -l)
         else
-          echo -ne "\bX" >&2
+          echo -ne "\b‼" >&2
         fi
       fi
       file="/$file"
-      echo "$rpm|$rpmlint_score|$nofont_score\
-|$file|$family|$style|$format|$type|$size|$checksum|$partial_scripts|$partial_blocks|$fontlint|$target" >> "../../$FFL"
+      echo "$rpmline|$metadata|$rpmlint_score|$nofont_score|\
+$file|$family|$style|$format|$type|$size|$checksum|\
+$partial_scripts|$partial_blocks|$fontlint|$target" >> "../$FL.2"
+    fi
+  done
+  [ -r "$rpm.bin.lst" ] && cat "$rpm.bin.lst" | sed 's=^\./==g' \
+    | while read file; do
+    type=$(file -bzh "$file")
+    if $(echo "$type" | grep -q -e '^ELF ' -e ' ELF ') ; then
+      if  $(nm -aDu "$file" | grep -q '\<X.*Font') ; then
+        echo -n "X"
+        size=$(du -b "$file" | cut -f 1)
+        checksum=$(sha256sum "$file" | cut -f 1)
+        echo "$rpmline|$metadata|$rpmlint_score|$nofont_score|\
+$file||||$type|$size|$checksum||||||X" >> "../$FL.2"
+      fi
     fi
   done
   cd ..
@@ -1004,33 +1108,23 @@ cd ..
 consolidate() {
 echo "▶▶▶ Consolidating data…"
 
-rm -f "$FL"
-cat "$PWFL" | while read rpmline; do
-  grep -q "$rpmline" "$FPL" && metadata="M" || metadata=""
-  rpm=$(echo "$rpmline" | awk -F '|' '{ print $2 "-" $3 "." $4 ; exit }')
-  awk -F '|' -v rpm="$rpm" '$1 == rpm' "$FFL" \
-  | while read rawfileline ; do
-    echo "$rawfileline" | \
-      awk -F "|" '{ for (i = 2; i < NF; i++) list = list $i "|" }
-                  END { print list $NF }' \
-      | while read fileline ; do
-      if [ "$(echo $fileline| awk -F '|' '{ print $7 }')" == "Link" ] ; then
-        source="$(awk -F '|' -v target=""$(echo $fileline | \
-                                           awk -F '|' '{ print $13 }')"" \
-                   '$4 == target { print $1 ; exit }' ""$FFL"" )"
-      else source=""
-      fi
-     echo "$rpmline|$metadata|$fileline|$source" >> "$FL"
-     done
-  done
-done
+awk -F "|" '
+  $13 != "Link" { source[$9] = $2
+                  out[$0] = $0 "|" }
+  $13 == "Link" { link[$0] = $9 }
+  END {
+    for (line in link) { out[line] = line "|" source[link[line]] }
+    n = asort(out)
+    for (i = 1; i <= n; i++) print out[i]
+  }' "tmp/$FL.2" > "$FL"
 
+awk -F "|" '
+  $15 != "" { out[$1 "|" $2 "|" $9 "|" $15] = $0 }
+  END {
+    n = asort(out)
+    for (i = 1; i <= n; i++) print out[i]
+  }' "$FL" > "$FLNM"
 
-awk -F '|' '$15 != "" { print $1 "|" $2 "|" $9 "|" $15 }' "$FL" | sort | uniq \
-  | while read sig ; do
-    awk -F '|' -v sig="$sig" \
-        '($1 "|" $2 "|" $9 "|" $15) == sig { print $0 ; exit }' "$FL"
-  done > "$FLNM"
 }
 
 
@@ -1046,7 +1140,8 @@ echo "SRPM|RPM|File" > "$TSUM"
 echo -n "— "
 test_help outside-usr-share-fonts title }
 
-awk -F '|' '($13 != "Link") && ($9 !~ /^\/usr\/share\/fonts\//)' "$FL" > tmp/tmp.csv
+awk -F '|' '($13 != "Link") && ($21!="X") && \
+            ($9 !~ /^\/usr\/share\/fonts\//)' "$FL" > tmp/tmp.csv
 
 list-rpm tmp/tmp.csv
 test_wrapup outside-usr-share-fonts tmp/tmp.csv "$TSUM"
@@ -1055,7 +1150,8 @@ test_wrapup outside-usr-share-fonts tmp/tmp.csv "$TSUM"
 echo -n "— "
 test_help without-rpm-metadata title
 
-awk -F '|' '($13 != "Link") && ($6 != "M")' "$FL" > tmp/tmp.csv
+awk -F '|' '($13 != "Link") && ($21!="X") && \
+            ($6 != "M")' "$FL" > tmp/tmp.csv
 
 list-rpm tmp/tmp.csv
 test_wrapup without-rpm-metadata tmp/tmp.csv "$TSUM"
@@ -1083,12 +1179,12 @@ test_wrapup family-mixing tmp/tmp.csv "$TSUM"
 echo -n "— "
 test_help duplicated-file title
 
-awk -F '|' '{ print $15 }' "$FLNM" | sort | uniq -d \
+awk -F '|' '$21!="X" { print $15 }' "$FLNM" | sort | uniq -d \
   | while read checksum ; do
     awk -F '|' -v checksum="$checksum" '$15==checksum' "$FLNM"
 done > tmp/tmp.csv
 
-awk -F '|' '{ print $15 }' tmp/tmp.csv | uniq \
+awk -F '|' '$21!="X" { print $15 }' tmp/tmp.csv | uniq \
   | while read checksum ; do
     awk -F '|' -v checksum="$checksum" '$15==checksum \
         { if ( $6 == "M" ) print $9 "|[" $2 "." $4 "]" ;
@@ -1124,7 +1220,8 @@ test_wrapup duplicated-face-ext tmp/tmp.csv "$TSUM"
 echo -n "— "
 test_help fc-query title
 
-awk -F '|' '($13 != "Link") && ($12 == "")' "$FL" > tmp/tmp.csv
+awk -F '|' '($13 != "Link") && ($21!="X") && \
+            ($12 == "")' "$FL" > tmp/tmp.csv
 
 [ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
 awk -F '|' '{ print $2 "-" $3 "." $4 }' tmp/tmp.csv | uniq \
@@ -1140,7 +1237,8 @@ test_wrapup fc-query tmp/tmp.csv "$TSUM"
 echo -n "— "
 test_help libmagic title
 
-awk -F '|' '($13 !~ /font/) && ($13 !~ /Font/) && ($13 != "Link")' "$FL" > tmp/tmp.csv
+awk -F '|' '($13 != "Link") && ($21!="X") && \
+            ($13 !~ /font/) && ($13 !~ /Font/)' "$FL" > tmp/tmp.csv
 
 [ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
 awk -F '|' '{ print $2 "-" $3 "." $4 }' tmp/tmp.csv | uniq \
@@ -1175,7 +1273,8 @@ test_wrapup rpmlint tmp/tmp.csv "$TSUM"
 echo -n "— "
 test_help mixed-with-non-font-data title
 
-awk -F '|' '($13 != "Link") && ($8 != "0")' "$FL" > tmp/tmp.csv
+awk -F '|' '($13 != "Link") && ($21!="X") && \
+            ($8 != "0")' "$FL" > tmp/tmp.csv
 
 list-rpm tmp/tmp.csv
 test_wrapup mixed-with-non-font-data tmp/tmp.csv "$TSUM"
@@ -1184,7 +1283,8 @@ test_wrapup mixed-with-non-font-data tmp/tmp.csv "$TSUM"
 echo -n "— "
 test_help arch-package title
 
-awk -F '|' '($13 != "Link") && ($4 != "noarch")' "$FL" > tmp/tmp.csv
+awk -F '|' '($13 != "Link") && ($21!="X") && \
+            ($4 != "noarch")' "$FL" > tmp/tmp.csv
 
 [ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
 awk -F '|' '{ print $2 "." $4 "|" $6 }' tmp/tmp.csv | sort | uniq \
@@ -1198,7 +1298,7 @@ test_wrapup arch-package tmp/tmp.csv "$TSUM"
 echo -n "— "
 test_help bad-rpm-naming title
 
-awk -F "|" '($13 != "Link") && \
+awk -F "|" '($13 != "Link") && ($21!="X") && \
             $2 !~ /^[0-9abcdefghijklmnopqrstuvwxyz\.-]*-fonts$/' "$FL" \
             > tmp/tmp.csv
 
@@ -1304,6 +1404,15 @@ awk -F "|" '{ print $10 ", " $11 }' tmp/tmp.csv | sort | uniq \
   done | column -t -s '|' | pretty_indent
 
 test_wrapup bad-style-naming tmp/tmp.csv "$TSUM"
+
+
+echo -n "— "
+test_help core-fonts title
+
+awk -F '|' '$21=="X"' "$FLNM" > tmp/tmp.csv
+
+list-rpm tmp/tmp.csv
+test_wrapup core-fonts tmp/tmp.csv "$TSUM"
 
 
 echo -n "— "
@@ -1558,7 +1667,7 @@ ORIGDIR="$PWD"
 
 FPL="font-packages.csv"
 PWFL="packages-with-fonts.csv"
-FFL="font-files.csv"
+XPL="package-using-x11.csv"
 CSL="checksums.csv"
 FL="consolidated-data.csv"
 FLNM="consolidated-data-no-multilib.csv"
@@ -1580,7 +1689,10 @@ sum_up  | tee summary.txt
 sed -i "s=.$(echo -ne '\b')==g" report.txt
 
 cp "$FL" "tmp/$FL"
-echo "SRPM|RPM|EVR|Arch|RPM size|RPM metadata|rpmlint score|foreign data|filename|family name|face name|format (fontconfig)|format (libmagic)|file size|checksum|partial scripts|partial blocks|fontlint|symlink target|symlink provider" > "$FL"
+echo "SRPM|RPM|EVR|Arch|RPM size|RPM metadata|rpmlint score|foreign data|\
+filename|family name|face name|format (fontconfig)|format (libmagic)|\
+file size|checksum|partial scripts|partial blocks|fontlint|symlink target|\
+symlink provider|core fonts use" > "$FL"
 cat "tmp/$FL" >> "$FL"
 
 prepare_spam
