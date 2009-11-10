@@ -553,16 +553,16 @@ EOF
         cat << EOF
 Upstream task
 
-This package accesses font through the X11 Core protocol.
+This package accesses fonts through the X11 Core protocol.
 
-Numerous longstanding problems with this mode of access, and a design that
-could not scale to modern font needs lead the (then XFree86) team to
+Numerous long-standing problems with this mode of access, and a design
+that could not scale to modern font needs lead the (then XFree86) team to
 deprecate it in favour of fontconfig (née xft). Adoption was quick and by
 2003 it was clear fontconfig was the new standard¹. Nowadays fontconfig is
 widely used², including on non Linux/Unix platforms.
 
 While X11 Core access has been kept on life-support this font system is
-not activelly maintained today. The font library it depends on is slowly
+not actively maintained today. The font library it depends on is slowly
 shrinking, as it was created in a period of different legal and technical
 requirements², and there is no one to update the font files when a problem
 is found³. Therefore, projects are advised to migrate before the situation
