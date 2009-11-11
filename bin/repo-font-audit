@@ -277,7 +277,7 @@ through fontconfig.
 
 If an application can not use fontconfig today this is a serious bug that
 should be reported to the application upstream. Please ask it to add
-fontconfig support to their code (possibly, via a higher-level library
+fontconfig support to their code (usually, via a higher-level library
 such as pango-cairo). However it can workarounded by the packager with
 symlinks (that will need maintenance).
 EOF
@@ -325,7 +325,7 @@ through fontconfig.
 
 If an application can not use fontconfig today this is a serious bug that
 should be reported to the application upstream. Please ask it to add
-fontconfig support to their code (possibly, via a higher-level library
+fontconfig support to their code (usually, via a higher-level library
 such as pango-cairo). However it can workarounded by the packager with
 symlinks (that will need maintenance).
 
@@ -390,7 +390,7 @@ properly set up. You need to change the symlink.
 Symlinking requires maintenance and is only necessary when an application
 lacks fontconfig support. If an application can not use fontconfig today
 this is a serious bug that should be reported to the application upstream.
-Please ask it to add fontconfig support to their code (possibly, via a
+Please ask it to add fontconfig support to their code (usually, via a
 higher-level library such as pango-cairo).
 EOF
         ;;
@@ -574,7 +574,7 @@ problems (since fontconfig can be used to change the behaviour of a font).
 
 If an application can not use fontconfig today this is a serious bug that
 should be reported to the application upstream. Please ask it to add
-fontconfig support to their code (possibly, via a higher-level library
+fontconfig support to their code (usually, via a higher-level library
 such as pango-cairo).
 
 
@@ -604,7 +604,7 @@ problems (since fontconfig can be used to change the behaviour of a font).
 
 If an application can not use fontconfig today this is a serious bug that
 should be reported to the application upstream. Please ask it to add
-fontconfig support to their code (possibly, via a higher-level library
+fontconfig support to their code (usually, via a higher-level library
 such as pango-cairo).
 EOF
         ;;
