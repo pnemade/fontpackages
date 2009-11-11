@@ -1092,6 +1092,7 @@ $partial_scripts|$partial_blocks|$fontlint|$target" >> "../$FL.2"
         echo -n "X"
         size=$(du -b "$file" | cut -f 1)
         checksum=$(sha256sum "$file" | cut -f 1)
+        file="/$file"
         echo "$rpmline|$metadata|$rpmlint_score|$nofont_score|\
 $file||||$type|$size|$checksum||||||X" >> "../$FL.2"
       fi
