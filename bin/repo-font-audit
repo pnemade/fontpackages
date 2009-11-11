@@ -1105,7 +1105,7 @@ $partial_scripts|$partial_blocks|$fontlint|$target" >> "../$FL.2"
     | while read file; do
     type=$(file -bzh "$file")
     if $(echo "$type" | grep -q -e '^ELF ' -e ' ELF ') ; then
-      if  $(nm -aDu "$file" | grep -v grep Xft | grep -q '\<X.*Font') ; then
+      if  $(nm -aDu "$file" | grep -v 'Xft' | grep -q '\<X.*Font') ; then
         echo -n "X"
         size=$(du -b "$file" | cut -f 1)
         checksum=$(sha256sum "$file" | cut -f 1)
