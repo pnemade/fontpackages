@@ -944,18 +944,35 @@ cat "$FL.1" | while read line ; do
   fi
   if $(echo $line | cut -d "|" -f 6 | grep -q "X") ; then
     cat "$rpm.lst" \
-      | grep -i -e "^./sbin/" \
-                -e "^./usr/sbin/" \
-                -e "^./usr/kerberos/sbin" \
-                -e "^./bin/" \
-                -e "^./usr/bin/" \
-                -e "^./usr/kerberos/bin/" \
-                -e "^./lib.*/" \
-                -e "^./usr/lib.*/" \
-                -e "^./opt/" \
-                -e "^./usr/X11R6/" \
-                -e "^./usr/games/" \
-                -e "^./usr/local/" \
+      | grep -i  -e "^./sbin/" \
+                 -e "^./usr/sbin/" \
+                 -e "^./usr/kerberos/sbin" \
+                 -e "^./bin/" \
+                 -e "^./usr/bin/" \
+                 -e "^./usr/kerberos/bin/" \
+                 -e "^./lib.*/" \
+                 -e "^./usr/lib.*/" \
+                 -e "^./opt/" \
+                 -e "^./usr/X11R6/" \
+                 -e "^./usr/games/" \
+                 -e "^./usr/local/" \
+      | grep -vi -e "^./usr/bin/editres" \
+                 -e "^./usr/bin/dmxwininfo" \
+                 -e "^./usr/bin/Xdmx" \
+                 -e "^./usr/bin/xdmxconfig" \
+                 -e "^./usr/bin/xfd" \
+                 -e "^./usr/bin/xfontsel" \
+                 -e "^./usr/bin/xlsfonts" \
+                 -e "^./usr/bin/Xnest" \
+                 -e "^./usr/bin/xprop" \
+                 -e "^./usr/bin/xset" \
+                 -e "^./usr/bin/xsetroot" \
+                 -e "^./usr/bin/xwininfo" \
+                 -e "^./usr/lib.*/libGL.so" \
+                 -e "^./usr/lib.*/libXcursor.so" \
+                 -e "^./usr/lib.*/libXext.so" \
+                 -e "^./usr/lib.*/libXmu.so" \
+                 -e "^./usr/lib.*/libXt.so" \
       > "$rpm.bin.lst"
     cpio -idm --quiet -E "$rpm.bin.lst" < "$rpm.cpio"
   fi
