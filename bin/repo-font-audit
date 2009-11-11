@@ -1110,14 +1110,17 @@ consolidate() {
 echo "▶▶▶ Consolidating data…"
 
 awk -F "|" '
-  $13 != "Link" { source[$9] = $2
+  $13 != "Link" { source[$9] = $2 "-" $3
                   out[$0] = $0 "|" }
-  $13 == "Link" { link[$0] = $9 }
+  $13 == "Link" { link[$0] = $19 }
   END {
-    for (line in link) { out[line] = line "|" source[link[line]] }
+    for (line in link) {
+      out[line] = line "|" source[link[line]]
+    }
     n = asort(out)
     for (i = 1; i <= n; i++) print out[i]
   }' "tmp/$FL.2" > "$FL"
+
 
 awk -F "|" '
   $15 != "" { out[$1 "|" $2 "|" $9 "|" $15] = $0 }
