@@ -939,8 +939,7 @@ cat "$FL.1" | while read line ; do
   if $(echo $line | cut -d "|" -f 6 | grep -q "E") ; then
     cat "$rpm.lst" \
       | grep -iE '\.((ttf)|(ttc)|(otf)|(pfa)|(pfb)|(bdf)|(pcf)|(pcf\.gz))$' \
-      > "$rpm.fonts.lst"
-    cpio -idm --quiet -E "$rpm.fonts.lst" < "$rpm.cpio"
+      | sort > "$rpm.fonts.lst"
   fi
   if $(echo $line | cut -d "|" -f 6 | grep -q "X") ; then
     cat "$rpm.lst" \
@@ -956,26 +955,21 @@ cat "$FL.1" | while read line ; do
                  -e "^./usr/X11R6/" \
                  -e "^./usr/games/" \
                  -e "^./usr/local/" \
-      | grep -vi -e "^./usr/bin/editres" \
-                 -e "^./usr/bin/dmxwininfo" \
+      | grep -vi -e "^./usr/bin/dmxwininfo" \
                  -e "^./usr/bin/Xdmx" \
-                 -e "^./usr/bin/xdmxconfig" \
-                 -e "^./usr/bin/xfd" \
                  -e "^./usr/bin/xfontsel" \
                  -e "^./usr/bin/xlsfonts" \
                  -e "^./usr/bin/Xnest" \
                  -e "^./usr/bin/xprop" \
-                 -e "^./usr/bin/xset" \
                  -e "^./usr/bin/xsetroot" \
                  -e "^./usr/bin/xwininfo" \
-                 -e "^./usr/lib.*/libGL.so" \
+                 -e "^./usr/bin/x11vnc" \
+                 -e "^./usr/bin/x2vnc" \
                  -e "^./usr/lib.*/libXcursor.so" \
-                 -e "^./usr/lib.*/libXext.so" \
-                 -e "^./usr/lib.*/libXmu.so" \
-                 -e "^./usr/lib.*/libXt.so" \
-      > "$rpm.bin.lst"
-    cpio -idm --quiet -E "$rpm.bin.lst" < "$rpm.cpio"
+      | sort > "$rpm.bin.lst"
   fi
+  cat "$rpm.fonts.lst" "$rpm.bin.lst"  | sort | uniq > "$rpm.files.lst"
+  cpio -idm --quiet -E "$rpm.files.lst" < "$rpm.cpio"
   echo -ne "\b● "
   [ -r "$rpm.fonts.lst" ] && cat "$rpm.fonts.lst" | sed 's=^\./==g' \
     | while read file; do
@@ -1105,10 +1099,7 @@ $partial_scripts|$partial_blocks|$fontlint|$target" >> "../$FL.2"
     | while read file; do
     type=$(file -bzh "$file")
     if $(echo "$type" | grep -q -e '^ELF ' -e ' ELF ') ; then
-      if  $(nm -aDu "$file" \
-              | grep -v -e 'Xft' \
-                        -e 'XCreateFontCursor' \
-              | grep -q '\<X.*Font') ; then
+      if  $(nm -aDu "$file" 2> /dev/null | grep -q  '\<XLoad.*Font') ; then
         echo -n "X"
         size=$(du -b "$file" | cut -f 1)
         checksum=$(sha256sum "$file" | cut -f 1)
