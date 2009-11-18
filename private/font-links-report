@@ -1,0 +1,12 @@
+#!/bin/sh
+# Assembles font link info
+
+if [ -s "$3" -a -r "$3" ] ; then
+
+  [ -s "$1" -a -r "$1" ] && rpminfo=$(cat "$1") || rpminfo="||||||"
+  [ -s "$2" -a -r "$2" ] && rpmlint_score=$(cat "$2")
+
+  awk -F '|' -v prefix="$rpminfo|$rpmlint_score" '
+    {  print prefix "|" $1 "||||Link||||||" $2  }' "$3"
+
+fi

@@ -1,0 +1,45 @@
+#!/bin/sh
+# Process fc query output to collect font file data
+
+# font file to examine
+font_file="$1"
+# Where to save fc-query data
+fc_file="$2"
+
+# FIXME: only extracts info about the first typeface in a TTC file for now
+parse_localized_fc_query() {
+  field="$1"
+  file="$2"
+  fieldstring=$(awk -F ':' -v field="$field" \
+                    '$1 == "\t"field { print $2 ; exit }' "$file" \
+               | sed 's="(s)="=g' | sed 's=" *"=|=g'| sed 's= *" *==g')"|"
+  default=$(echo $fieldstring | awk -F "|" '{ print $1 }')
+  if $(grep -q "^"$'\t'$field"lang:" "$file") ; then
+    langstring=$(awk -F ':' -v field="$field" \
+                '$1 == "\t"field"lang" { print $2 ; exit }' "$file" \
+                | sed 's="(s)="=g' | sed 's=" *"=|=g'| sed 's= *" *==g')"|"
+    # Try to find the English label
+    while [ "$langstring" != "" -a \
+            "$(echo $langstring | cut -d '|' -f 1)" != "en" ] ; do
+      fieldstring=$(echo "$fieldstring" | sed 's+\([^|]*\)|\(.*\)+\2+g')
+      langstring=$(echo "$langstring" | sed 's+\([^|]*\)|\(.*\)+\2+g')
+    done
+    # We could hide problems by reporting the first label regardless of its
+    # language. But this is an audit script — we do not hide problems
+    echo "$fieldstring" |  awk -F "|" '{ print $1 }'
+    if [ "$fieldstring" == "" ] ; then  echo -ne "\b‽" >&2 ; fi
+  else
+    echo $(echo $fieldstring | cut -d '|' -f 1)
+  fi
+}
+
+if $(FC_DEBUG=256 fc-query "$font_file" 2> /dev/null > "$fc_file") ; then
+  family=$(parse_localized_fc_query family "$fc_file")
+  style=$(parse_localized_fc_query style "$fc_file")
+  format=$(parse_localized_fc_query fontformat "$fc_file")
+else
+  touch "$fc_file"
+fi
+
+
+echo "$family|$style|$format"

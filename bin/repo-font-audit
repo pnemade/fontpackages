@@ -1,5 +1,5 @@
-#!/bin/bash
-# Quick and dirty script to audit font repartition in a yum package repository
+#!/bin/sh
+# Quick and dirty script to audit font use in a yum package repository
 #
 # It is slow, it is ugly, and it requires a good network connection
 
@@ -19,59 +19,84 @@ EOF_USAGE
 exit 1
 }
 
+DATADIR=
 
-# FIXME: only extracts info about the first typeface in a TTC file for now
-parse_localized_fc_query() {
-  field="$1"
-  file="$2"
-  fieldstring=$(awk -F ':' -v field="$field" \
-                    '$1 == "\t"field { print $2 ; exit }' "$file" \
-               | sed 's="(s)="=g' | sed 's=" *"=|=g'| sed 's= *" *==g')"|"
-  default=$(echo $fieldstring | awk -F "|" '{ print $1 }')
-  if $(grep -q "^"$'\t'$field"lang:" "$file") ; then
-    langstring=$(awk -F ':' -v field="$field" \
-                '$1 == "\t"field"lang" { print $2 ; exit }' "$file" \
-                | sed 's="(s)="=g' | sed 's=" *"=|=g'| sed 's= *" *==g')"|"
-    # Try to find the English label
-    while [ "$langstring" != "" -a \
-            "$(echo $langstring | awk -F '|' '{ print $1 }')" != "en" ] ; do
-      fieldstring=$(echo "$fieldstring" | sed 's+\([^|]*\)|\(.*\)+\2+g')
-      langstring=$(echo "$langstring" | sed 's+\([^|]*\)|\(.*\)+\2+g')
-    done
-    # We could hide problems by reporting the first label regardless of its
-    # language. But this is an audit script — we do not hide problems
-    echo "$fieldstring" |  awk -F "|" '{ print $1 }'
-    if [ "$fieldstring" == "" ] ; then  echo -ne "\b‽" >&2 ; fi
-  else
-    echo $(echo $fieldstring | awk -F "|" '{ print $1 }')
-  fi
-}
+# WWS face attribute patterns. Definitions taken from:
+# http://blogs.msdn.com/text/attachment/2249036.ashx
+wws_patterns=$(awk -F "|" '
+  BEGIN {
+    na = split("slant|stretch|weight",attributes,"|")
+
+    blocks["slant"]   = "Normal|Italic|Oblique"
+    blocks["stretch"] = "UltraCondensed|ExtraCondensed|SemiCondensed|SemiExpanded|ExtraExpanded|UltraExpanded|Condensed|Expanded"
+    blocks["weight"]  = "Thin1|ExtraLight|DemiBold1|ExtraBold1|Bold|Thin2|Light|Medium|Black|ExtraBlack|DemiBold2|ExtraBold2"
+
+    aliases["Normal"]  = "Book|Normal|Regular|Roman|Upright"
+    aliases["Italic"]  = "ita|ital|Italic|cursive|kursiv"
+    aliases["Oblique"] = "inclined|Oblique|backslanted|backslant|slanted"
+
+    aliases["UltraCondensed"] = "extra compressed|ext compressed|ultra compressed|ultra condensed|ultra cond|UltraCondensed"
+    aliases["ExtraCondensed"] = "compressed|extra condensed|ext condensed|extra cond|ext cond|ExtraCondensed"
+    aliases["SemiCondensed"]  = "narrow|compact|semi condensed|semi cond|SemiCondensed"
+    aliases["SemiExpanded"]   = "wide|semi expanded|semi extended|SemiExpanded"
+    aliases["ExtraExpanded"]  = "extra expanded|ext expanded|extra extended|ext extended|ExtraExpanded"
+    aliases["UltraExpanded"]  = "ultra expanded|ultra extended|UltraExpanded"
+    aliases["Condensed"]      = "Condensed|cond"
+    aliases["Expanded"]       = "extended|Expanded|extended"
+
+    aliases["Thin1"]      = "extra thin|ext thin|ultra thin"
+    aliases["ExtraLight"] = "extra light|ext light|ultra light|UltraLight|ExtraLight"
+    aliases["DemiBold1"]  = "semi bold|demi bold|SemiBold|DemiBold"
+    aliases["ExtraBold1"] = "extra bold|ext bold|ultra bold|UltraBold|ExtraBold"
+    aliases["Bold"]       = "Bold"
+    aliases["Thin2"]      = "thin"
+    aliases["Light"]      = "Light"
+    aliases["Medium"]     = "Medium"
+    aliases["Black"]      = "Black|heavy|nord"
+    aliases["ExtraBlack"] = "extra black|ext black|ultra black|UltraBlack|ExtraBlack"
+    aliases["DemiBold2"]  = "demi"
+    aliases["ExtraBold2"] = "ultra"
+
+    for (a = 1 ; a <= na ; a++ ) {
+      out = out attributes[a] "#"
+      nb  = split(blocks[attributes[a]], bs, "|")
+      for ( b = 1 ; b <= nb ; b++ ) {
+        out = out bs[b] "|" tolower(aliases[bs[b]]) "#"
+      }
+      sub("#$","~",out)
+    }
+    sub("~$","",out)
+    print out
+  }')
 
 
 pretty_indent() {
-  fold -s -w $(($(tput cols) - 4)) \
-  | while read line ; do echo "    $line" ; done
-  echo ""
+  fold -s -w $(($(tput cols) - 2)) \
+  | while read line ; do echo "  $line" ; done
 }
 
-
+# $1 = CSV file to evaluate
 tally() {
-t_datafile=$1
 
-t_file=$(cat "$t_datafile" | wc -l)
-t_file_size=$(awk -F '|' '{ sum += $14 } END { print sum }' "$t_datafile")
-t_file_size=$((t_file_size/(1024*1024)))
-
-t_rpm=$(awk -F '|' '{ print $2 "-" $3 "." $4 }' "$t_datafile" \
-        | sort | uniq | wc -l)
-t_rpm_size=$(awk -F '|' '{ print $2 "-" $3 "." $4 "|" $5 }' "$t_datafile" \
-             | sort | uniq \
-            |awk -F '|' '{ sum += $2 } END { print sum }')
-t_rpm_size=$((t_rpm_size/(1024*1024)))
-
-t_srpm=$(awk -F '|' '{ print $1 }' "$t_datafile" | sort | uniq | wc -l)
-
-echo "$t_file|$t_rpm|$t_srpm|$t_file_size|$t_rpm_size"
+awk -F "|" '
+  {
+    filesize   += $15
+    filenumber += 1
+    rpmsz[$3 "-" $4 "." $5] = $6
+    srpms[$2] = 1
+  }
+  END {
+    for (rpm in rpmsz) {
+      rpmsize   += rpmsz[rpm]
+      rpmnumber +=1
+    }
+    for (srpm in srpms) {
+      srpmnumber +=1
+    }
+    rpmsize  = rpmsize  / (1024*1024)
+    filesize = filesize / (1024*1024)
+    print filenumber "|" rpmnumber "|" srpmnumber "|" filesize "|" rpmsize
+  }' "$1"
 }
 
 
@@ -83,6 +108,7 @@ if [ $(cat "$1" | wc -l) -gt 0 ] ; then
 else
   echo "⇒  None!" | pretty_indent
 fi
+echo ""
 }
 
 
@@ -91,7 +117,7 @@ fi
 # $3 = test id
 complete_csv_summary() {
   awk -F '|' -v t_datafile="$2" -v testlabel="$3" \
-      'FILENAME==t_datafile { fail[$1"|"$2"|"$9] = 1 }
+      'FILENAME==t_datafile { fail[$1"|"$2"|"$3"|"$10] = 1 }
        FILENAME!=t_datafile && FNR==1 {
         max = NF + 1
         header = $1
@@ -101,7 +127,7 @@ complete_csv_summary() {
         print header testlabel
        }
        FILENAME!=t_datafile && FNR>1 {
-         line = $1 "|" $2 "|" $3
+         line = $1 "|" $2 "|" $3 "|" $4
          newline = $1
          for (i = 2 ; i <= max ; i++) {
            newline = newline "|" $i
@@ -113,7 +139,7 @@ complete_csv_summary() {
          for ( line in fail ) {
            if ( ! processed[line] ) {
              newline = line
-             for (i = 4 ; i <= max ; i++) {
+             for (i = 5 ; i <= max ; i++) {
                newline = newline "|"
              }
              print newline fail[line]
@@ -139,6 +165,7 @@ awk -F '|' '{ print $NF }' "$ss_datafile" | sort | uniq \
 }
 
 
+# $1 = CSV file to sum_up
 stats() {
 s_datafile="$1"
 
@@ -146,56 +173,82 @@ summary "$s_datafile"
 
 if [ $(cat "$s_datafile" | wc -l) -gt 0 ] ; then
   (echo "Format|Files|rpm|srpm|Files (MiB)|rpm (MiB)"
-  awk -F '|' '$12 != "" { print $0 "|" $12 }' "$s_datafile" > tmp/tmp.s.csv
+  awk -F '|' '$13 != "" { print $0 "|" $13 }' "$s_datafile" > tmp/tmp.s.csv
   substats tmp/tmp.s.csv) | column -t -s '|' | pretty_indent
+  echo ""
 
-  (echo "Format|Files|rpm|srpm|Files (MiB)|rpm (MiB)"
-  awk -F '|' '{ print $0 "|" $4 }' "$s_datafile" > tmp/tmp.s.csv
+  (echo "Arch|Files|rpm|srpm|Files (MiB)|rpm (MiB)"
+  awk -F '|' '{ print $0 "|" $5 }' "$s_datafile" > tmp/tmp.s.csv
   substats tmp/tmp.s.csv)| column -t -s '|' | pretty_indent
+  echo ""
 
   rm tmp/tmp.s.csv
 fi
 }
 
 
-list-rpm() {
-if [ $(cat "$1" | wc -l) -gt 0 ] ; then
-  awk -F '|' '{ if ( $6 == "M" ) print "[" $2 "]" ; \
-                            else print     $2     }' "$1" | sort | uniq \
-    | awk -F '|' '{ list = list " " $1 } END { print list }' | pretty_indent
-fi
+# $1 = CSV file to sum_up
+list_rpm() {
+
+[ $(cat "$1" | wc -l) -gt 0 ] && \
+awk -F '|' '
+  {
+    rpm = $3
+    if ( $7 == "M" ) { rpm = "[" rpm "]" }
+    total[rpm] += 1
+  }
+  END {
+    n = asorti(total, sorted)
+    for ( i = 1 ; i <= n ; i++ ) {
+      line = line sorted[i] "(" total[sorted[i]] "), "
+    }
+    sub(", $","",line)
+    print line
+  }' "$1" | pretty_indent
+
 }
 
-
-canonalise_and_invert_string() {
-  cais=""
-  for token in $(echo "$@" | sed "s=[ \t_\.-]\+= =g" | sed "s=^ ==g" \
-                           | sed "s= $==g") ; do
-      cais="$token $cais"
-  done
-  echo " $cais"
-}
-
-
-wws_resolve () {
-cais_name=$(canonalise_and_invert_string $1)
-result="$cais_name"
-patterns=""
-for pattern in $2 ; do patterns="$pattern $patterns" ; done
-for pattern in $patterns ; do
-   pattern=$(canonalise_and_invert_string $pattern)
-   tmp=$(echo "$cais_name" | sed "s=$pattern= =i")
-   [ "$tmp" != "$cais_name" ] && result="$tmp"
-done
-result=$(canonalise_and_invert_string "$result" \
-         | sed "s=^ ==" | sed "s= $==")
-echo "$result"
+# Pipe CSV file to sum_up
+# It is assumed to be of the form
+# rpm | pattern to match | pattern to display
+# patterns may include # as separators
+enum_rpm() {
+awk -F '|' '
+  {
+    rpm = $1
+    key = $2
+    pat = $3
+    files[key] = files[key] pat "#" rpm "|"
+  }
+  END {
+    for (key in files) {
+      sub("\\|$", "", files[key])
+      total = split(files[key], lines,"|")
+      pb[total] = pb[total] key "|"
+    }
+    n=asorti(pb, sorted)
+    for (i = n; i >= 1; i--) {
+      total = sorted[i]
+      sub("\\|$", "", pb[total])
+      split(pb[total], keys,"|")
+      for (k in keys) {
+        print gensub("#", ", ", "G", keys[k])
+        split(files[keys[k]], lines, "|")
+        for (l in lines) {
+          print "  " gensub("#", "\t", "G", lines[l])
+        }
+      }
+    }
+  }' | pretty_indent
 }
 
 
 # $1 test id
 # $2 "title" of "help"
 test_help() {
+
+[ "$2" == "help" ] && echo -n "☛ "
+
 case "$1" in
  "outside-usr-share-fonts")
     case "$2" in
@@ -767,89 +820,96 @@ EOF
     echo "Unknown test."
     ;;
 esac
+
+[ "$2" == "help" ] && echo ""
 }
 
 
-# $1 this test id
-# $2 csv file with the results of this test
-# $3 csv file that consolidates the results of all tests
+# $1 = this test id
+# $2 = csv file with the results of this test
+# $3 = csv file that consolidates the results of all tests
 test_wrapup() {
 
 complete_csv_summary "$3" "$2" "$1"
 summary "$2"
 
-[ $(cat "$2" | wc -l) -gt 0 ] && \
-( echo -n "☛ " ; test_help "$1" help ) | pretty_indent
-
 }
 
 
-# $1 csv with test results
+# $1 = csv file with test results
 test_score() {
-if [ $(cat "$1" | wc -l) -gt 1 ] ; then
-  (
-    awk -F '|' '
-      FNR==1 {
-        max = NF
-      }
-      FNR>1 {
-        id = $1 "|" $2
-        fail[id] = 1
-        for (i = 4 ; i <= max ; i++) {
-          score[id"|"i] = score[id"|"i] + $i
-          totalscore[i] = totalscore[i] + $i
-        }
-      }
-      END {
-        headerline = "SRPM|RPM"
-        for (i = 4 ; i <= max ; i++) {
-          if ( totalscore[i] ) { headerline  = headerline "|" i-3 }
-        }
-        print headerline
-        n = asorti(fail)
-        for (l = 1; l <= n; l++) {
-          newline = fail[l]
-          for (c = 4 ; c <= max ; c++) {
-            if ( totalscore[c] ) {
-              if ( score[fail[l]"|"c] )
-                { newline = newline "|" score[fail[l]"|"c] }
-              else
-                { newline = newline "|‧" }
-            }
-          }
-          print newline
-        }
-        totalline = " |Total"
-        for (i = 4 ; i <= max ; i++) {
-          if ( totalscore[i] ) { totalline = totalline "|"  totalscore[i] }
-        }
-        print totalline
-      }' "$1"
-  ) | column -t -s '|'
-
+if [ $(cat "$1" | wc -l) -gt 2 ] ; then
   awk -F '|' '
+    BEGIN {
+      lh=5
+      headerline = "Maint.|SRPM|RPM"
+    }
     FNR==1 {
       max = NF
-      for (i = 4 ; i <= max ; i++) {
-        legend[i] = i-3 "|" $i }
-      }
+    }
     FNR>1 {
-      for (i = 4 ; i <= max ; i++) {
+      id = ""
+      for (i = 1 ; i < (lh-1) ; i++) {
+        if ($i != "") id = id $i "|"
+        else          id = id   " |"
+      }
+      sub("\\|$","",id)
+      fail[id] = 1
+      for (i = lh ; i <= max ; i++) {
+        score[id"|"i] = score[id"|"i] + $i
         totalscore[i] = totalscore[i] + $i
       }
     }
     END {
-      for (i = 4 ; i <= max ; i++) {
+      for (i = lh ; i <= max ; i++) {
+          if ( totalscore[i] ) { headerline  = headerline "|" i+1-lh }
+        }
+      print headerline
+      n = asorti(fail)
+      for (l = 1; l <= n; l++) {
+        newline = fail[l]
+        for (c = lh ; c <= max ; c++) {
+          if ( totalscore[c] ) {
+            if ( score[fail[l]"|"c] )
+              { newline = newline "|" score[fail[l]"|"c] }
+            else
+              { newline = newline "|‧" }
+          }
+        }
+        print newline
+      }
+      totalline = " | |Total"
+      for (i = lh ; i <= max ; i++) {
+        if ( totalscore[i] ) { totalline = totalline "|"  totalscore[i] }
+      }
+      print totalline
+    }' "$1" | column -t -s '|'
+
+  echo ""
+
+  awk -F '|' '
+    BEGIN { lh = 5 }
+    FNR==1 {
+      max = NF
+      for (i = lh ; i <= max ; i++) {
+        legend[i] = i+1-lh "|" $i }
+      }
+    FNR>1 {
+      for (i = lh ; i <= max ; i++) {
+        totalscore[i] = totalscore[i] + $i
+      }
+    }
+    END {
+      for (i = lh ; i <= max ; i++) {
         if ( totalscore[i] ) { print legend[i] }
       }
     }' "$1" | while read line ; do
-      echo ""
       testnumber=$(echo $line | awk -F '|' '{ print $1 }')
       testid=$(echo $line | awk -F '|' '{ print $2 }')
       echo -n "$testnumber. "
       test_help $testid title
       echo ""
-      ( echo -n "☛ " ; test_help $testid help ) | pretty_indent
+      ( test_help $testid help ) | pretty_indent
     done
 
 else
@@ -860,7 +920,8 @@ fi
 
 
 collect() {
-echo "▶▶▶ Searching for packages with font metadata…"
+echo "Looking for packages:"
+echo "— with font metadata…"
 repoquery --repofrompath=$REPOID,$REPOURL --repoid=$REPOID \
           --qf "%{sourcerpm}|%{name}|%{epoch}:%{version}-%{release}|%{arch}|%{packagesize}|M" \
           --whatprovides "font(*)" --quiet \
@@ -868,7 +929,7 @@ repoquery --repofrompath=$REPOID,$REPOURL --repoid=$REPOID \
           | sed 's=^\([^|]\+\?\)\-\([^-|]\+\?\)\-\([^-|]\+\?\)|=\1|=g' \
           > "$FPL"
 
-echo "▶▶▶ Searching for packages that include files with common font extensions…"
+echo "— that include files with common font extensions…"
 repoquery --repofrompath=$REPOID,$REPOURL --repoid=$REPOID \
           --qf "%{sourcerpm}|%{name}|%{epoch}:%{version}-%{release}|%{arch}|%{packagesize}|E" \
           -f '*.ttf' -f '*.otf' -f '*.ttc' \
@@ -878,7 +939,7 @@ repoquery --repofrompath=$REPOID,$REPOURL --repoid=$REPOID \
           | sed 's=^\([^|]\+\?\)\-\([^-|]\+\?\)\-\([^-|]\+\?\)|=\1|=g' \
           > "$PWFL"
 
-echo "▶▶▶ Searching for packages that use the core X11 protocol…"
+echo "— that use the core X11 protocol…"
 repoquery --repofrompath=$REPOID,$REPOURL --repoid=$REPOID \
           --qf "%{sourcerpm}|%{name}|%{epoch}:%{version}-%{release}|%{arch}|%{packagesize}|X" \
           --whatrequires 'libX11.so*' \
@@ -897,35 +958,32 @@ cat "$FPL" "$PWFL" "$XPL" \
       END {
         n =  asorti(tag,rpm)
         for (l = 1; l <= n; l++) {
-          sub(/,$/, "", tag[rpm[l]])
+          sub(",$", "", tag[rpm[l]])
           print rpm[l] "|" tag[rpm[l]]
         }
       }' > "tmp/$FL.1"
 
-
-echo "▶▶▶ Inspecting packages:"
+echo ""
+echo "Inspecting packages:"
 cd "tmp"
 rm -f "$FL.2"
 
 cat "$FL.1" | while read line ; do
-  rpm=$(echo $line | awk -F '|' '{ print $2 "-" $3 "." $4 }')
-  rpmline=$(echo $line | awk -F '|' '{ print $1 "|" $2 "|" $3 "|" $4 "|" $5 }')
-  echo $line | cut -d "|" -f 6 | grep -q "M" \
-    && metadata="M" || metadata=""
-  echo -n " – $rpm"
+  rpm=$(echo "$line" | awk -F '|' '{ print $2 "-" $3 "." $4 }')
+  rpmline=$(echo "$line" | awk -F '|' '{ print $1 "|" $2 "|" $3 "|" $4 "|" $5 }')
+  echo "$line" | cut -d "|" -f 6 | grep -q "M" && metadata="M" || metadata=""
+  echo -n "– $rpm "
   mkdir "$rpm"
   cd "$rpm"
   echo -n " ◔"
   rpm_loc=$(repoquery --repofrompath=$REPOID,$REPOURL --repoid=$REPOID --location "$rpm" 2>/dev/null)
   if $(echo "$rpm_loc" | grep -q -e "^file://") ; then
-    rpm_file=$(echo "$rpm_loc" | sed "s=^file://=/=")
+    ln -s $(echo "$rpm_loc" | sed "s=^file://=/=") "$rpm.rpm"
   else
     wget --quiet -O "$rpm.rpm" "$rpm_loc"
-    rpm_file="$rpm.rpm"
   fi
   echo -ne "\b◑"
-  rpmlint_score=$(rpmlint -i "$rpm_file" > "../rpmlint-$rpm.txt" 2>&1 ; echo $?)
-  rpm2cpio "$rpm_file" > "$rpm.cpio"
+  rpm2cpio "$rpm.rpm" > "$rpm.cpio"
   echo -ne "\b◕"
   cat "$rpm.cpio" | cpio --quiet -it > "$rpm.lst"
   nofont_score=$(cat "$rpm.lst" | sed 's=^\./=/=g' \
@@ -936,6 +994,7 @@ cat "$FL.1" | while read line ; do
                 -e "^/etc/X11/fontpath.d/" \
                 -e '\.((ttf)|(ttc)|(otf)|(pfa)|(pfb)|(bdf)|(pcf)|(pcf\.gz))$' \
     | wc -l)
+  echo "$rpmline|$metadata|$nofont_score" > rpm-info.txt
   if $(echo $line | cut -d "|" -f 6 | grep -q "E") ; then
     cat "$rpm.lst" \
       | grep -iE '\.((ttf)|(ttc)|(otf)|(pfa)|(pfb)|(bdf)|(pcf)|(pcf\.gz))$' \
@@ -968,28 +1027,30 @@ cat "$FL.1" | while read line ; do
                  -e "^./usr/lib.*/libXcursor.so" \
       | sort > "$rpm.bin.lst"
   fi
+  touch "$rpm.fonts.lst" "$rpm.bin.lst"
   cat "$rpm.fonts.lst" "$rpm.bin.lst"  | sort | uniq > "$rpm.files.lst"
-  cpio -idm --quiet -E "$rpm.files.lst" < "$rpm.cpio"
+  mkdir src
+  cd src
+  cpio -idm --quiet -E "../$rpm.files.lst" < "../$rpm.cpio"
+  cd ..
+  rm "$rpm.cpio"
   echo -ne "\b● "
-  [ -r "$rpm.fonts.lst" ] && cat "$rpm.fonts.lst" | sed 's=^\./==g' \
+  sed 's=^\./==g' "$rpm.fonts.lst" \
     | while read file; do
-    unset target checksum type family style format \
-          partial_scripts partial_blocks fontlint
-    type=$(file -bzh "$file")
+    unset target
+    type=$(file -bzh "src/$file")
     case $(echo "$type" | sed 's+ (\(.*\)++g' \
                              | sed 's+ `\(.*\)++g' \
                              | sed 's+,\(.*\)++g' \
                              | sed 's+\( \)*$++g' ) in
       "TrueType font data")
         echo -n "t"
-        sfnt=true
         ;;
       "TrueType font collection data")
         echo -n "T"
         ;;
       "OpenType font data")
         echo -n "o"
-        sfnt=true
         ;;
       "X11 Portable Compiled Font data")
         echo -n "b"
@@ -1012,7 +1073,7 @@ cat "$FL.1" | while read line ; do
         echo -n "!" >&2
         ;;
       "symbolic link to"|"broken symbolic link to")
-        target=$(readlink -m "$file" | sed "s+^$PWD++g")
+        target=$(readlink -m "src/$file" | sed "s+^$PWD/src++g")
         if $(echo "$target" | grep -q "^/usr/share/fonts") ; then
           type="Link"
           echo -n "l"
@@ -1025,90 +1086,83 @@ cat "$FL.1" | while read line ; do
         echo -n "?"
         ;;
     esac
-    if [ "$type" != "ignored" ] ; then
-      size=$(du -b "$file" | cut -f 1)
-      if [ ! -h "$file" ] ; then
-        sanfile=$(echo "$file" | sed "s=/=.=g")
-        checksum=$(sha256sum "$file" | cut -f 1)
-        LANG=C fontlint "$file" 2>&1 | awk 'FNR>3' > \
-          "../fontlint-$rpm-$sanfile.txt"
-        # Fontlint is too anal and would fail almost every font in the repo if
-        # we let it; filter errors so frequent apps must be able to cope with
-        # them. Please give feedback if you feel the filtering could be improved
-        fontlint=$(cat "../fontlint-$rpm-$sanfile.txt" \
-          | awk -F "|" '
-              NR==1               { result = $0 }
-              NR>1 && $1 !~ /^  / { result = result "\n" $0 }
-              NR>1 && $1  ~ /^  / { gsub("^  ", "|",$1)
-                                    result = result $0 }
-              END { print result }' \
-          | awk -F "|" '
-              $1 ~ /Validation/ {
-                  l=2
-                  while (l<NF) {
-                    print $l
-                    l++
-                  }
-                  print $NF
-                }
-              $1 !~ /Validation/ { print }' \
-          | awk -F "|" '
-              NR==1              { result = $0 }
-              NR>1 && $1 !~ /^ / { result = result "\n" $0 }
-              NR>1 && $1  ~ /^ / { gsub("^ ", "|",$1)
-                                   result = result $0 }
-              END { print result }' \
-          | grep -v "^The following table(s) in the font have been ignored by FontForge" \
-          | grep -v "^The glyph named .* is mapped to .*But its name indicates it should be mapped to .*." \
-          | grep -v "^A glyph uses at least one, but not all, anchor classes in a subtable" \
-          | grep -v "^This font contains both a .* table and a .* table." \
-          | grep -v "^Missing Points at Extrema" \
-          | grep -v "^Self Intersecting Glyph" \
-          | grep -v "^Wrong Direction" \
-          | wc -l)
-        if [ "$type" == "TrueType font data" -o \
-             "$type" == "OpenType font data" ] ; then
-          ttfcoverage "$file" > "../unicover-$rpm-$sanfile.txt"
-          # Cut out at 10 like fc-query
-          partial_blocks=$(sed \
-            's=^\([^\:]*\):\( *\)\([0-9]\+\)/\([0-9]\+\)\( *\)(\([0-9.]\+\)%)$=\1|\3|\4|\6='\
-            "../unicover-$rpm-$sanfile.txt" |\
-            awk -F '|' '($3-$2 > 0) && ($3-$2 < 10) { print $1 ": " $3-$2 }' | wc -l)
-        fi
-        fc_file="../fc-query-$rpm-$sanfile.txt"
-        if $(FC_DEBUG=256 fc-query "$file" 2> /dev/null > "$fc_file") ; then
-          family=$(parse_localized_fc_query family "$fc_file")
-          style=$(parse_localized_fc_query style "$fc_file")
-          format=$(parse_localized_fc_query fontformat "$fc_file")
-          # fc-query only reports partial coverage for 10 glyphs or less,
-          # lowering this limit does not significantly reduce the number of
-          # flagged fonts today
-          partial_scripts=$(grep '^[a-z]\{1,4\}\(-[a-z]\{1,4\}\)\?([1-9]) \+{ \+\([a-f0-9]\{4\} \)\+}' \
-                               "$fc_file" | wc -l)
-        else
-          echo -ne "\b‼" >&2
-        fi
-      fi
-      file="/$file"
-      echo "$rpmline|$metadata|$rpmlint_score|$nofont_score|\
-$file|$family|$style|$format|$type|$size|$checksum|\
-$partial_scripts|$partial_blocks|$fontlint|$target" >> "../$FL.2"
+    if [ "$type" != "ignored" -a ! -h "src/$file" ] ; then
+       mkdir -p $(dirname "tmp/$file")
+       echo "/$file|$type" > "tmp/$file.rfo.info"
+       if [ "$type" != "TrueType font data" -a \
+            "$type" != "OpenType font data" ] ; then
+         touch "tmp/$file.rfo.unicover"
+       fi
+       echo "tmp/$file.rfo.fonts"  >> mk.data.targets
+       for ext in fontlint unicover fc-query ; do
+         echo "tmp/$file.rfo.$ext" >> mk.file.targets
+       done
+    fi
+    if [ "$type" = "Link" ] ; then
+      echo "/$file|$target" >> font-links.txt
     fi
   done
-  [ -r "$rpm.bin.lst" ] && cat "$rpm.bin.lst" | sed 's=^\./==g' \
-    | while read file; do
-    type=$(file -bzh "$file")
+
+  sed 's=^\./==g' "$rpm.bin.lst" \
+    | while read file ; do
+    type=$(file -bzh "src/$file")
     if $(echo "$type" | grep -q -e '^ELF ' -e ' ELF ') ; then
-      if  $(nm -aDu "$file" 2> /dev/null | grep -q  '\<XLoad.*Font') ; then
-        echo -n "X"
-        size=$(du -b "$file" | cut -f 1)
-        checksum=$(sha256sum "$file" | cut -f 1)
-        file="/$file"
-        echo "$rpmline|$metadata|$rpmlint_score|$nofont_score|\
-$file||||$type|$size|$checksum||||||X" >> "../$FL.2"
-      fi
+      echo -n "‧"
+      mkdir -p $(dirname "tmp/$file")
+      echo "/$file|$type" > "tmp/$file.rfo.info"
+      echo "tmp/$file.rfo.core-fonts" >> mk.data.targets
     fi
   done
+
+  if [ -a mk.data.targets -o -a mk.file.targets -o -a font-links.txt ] ; then
+
+    targets=rpmlint.txt
+    [ -a font-links.txt ] && echo processed-font-links.txt >> mk.data.targets
+
+    # Filenames with whitespace or & + makefile = !!!
+    if [ -a mk.data.targets -o -a mk.file.targets ] ; then
+      bad_pattern="[[:space:]&]"
+
+      for mklist in mk.data.targets mk.file.targets ; do
+        if [ -a "$mklist" ] ; then
+          sed -i "s+$bad_pattern+_+g" "$mklist"
+          targets="$targets $(cat $mklist)"
+        fi
+      done
+
+      find . -type d | grep "$bad_pattern" | sort -r \
+        | while read dir ; do
+            ddir=$(echo "$dir"| sed "s+$bad_pattern+_+g")
+            mkdir -p "$ddir"
+            mv "$dir/*" "$ddir/"
+          done
+      find . -type f | grep "$bad_pattern" \
+        | while read file ; do
+            dfile=$(echo "$file"| sed "s+$bad_pattern+_+g")
+            mv "$file" "$dfile"
+          done
+    fi
+
+    # There must be a cleaner way to do this
+    parallelism=$(($(cat /proc/cpuinfo | grep processor | wc -l)+1))
+    make -s -j $parallelism -f "$DATADIR/repo-font-audit.mk" $targets
+
+    [ -a mk.data.targets ] && cat $(cat mk.data.targets) >> "../$FL.2" 
+
+    if [ -a mk.file.targets ] ; then
+      for ext in fontlint unicover fc-query ; do
+        find tmp -name "*\.rfo\.$ext" \
+          | while read file ; do
+              dest=$(echo "$file" | sed "s=/=_=g" \
+       	                          | sed "s=^tmp_=../$ext~$rpm~=" \
+                                  | sed "s=\.rfo\.$ext=.txt=g" )
+              [ -s "$file" ] && mv "$file" "$dest" || :
+            done
+      done
+    fi
+    mv rpmlint.txt "../rpmlint~$rpm.txt"
+  fi
+
   cd ..
   rm -fr "$rpm"
   echo " ♻"
@@ -1118,116 +1172,186 @@ cd ..
 
 
 consolidate() {
-echo "▶▶▶ Consolidating data…"
+echo ""
+echo "Consolidating data…"
+
+echo "Maintainer|SRPM|RPM|EVR|Arch|RPM size|RPM metadata|foreign data|\
+rpmlint score|filename|family name|face name|format (fontconfig)|\
+format (libmagic)|file size|checksum|partial scripts|partial blocks|fontlint|\
+symlink target|symlink provider|core fonts use" > "$FL"
+
+if  [ -s "tmp/$FL.2" -a -r "tmp/$FL.2" ] ; then
+
+  # FIXME: make this distro-agnostic
+  cut -d "|" -f 1 "tmp/$FL.2" | sort | uniq \
+    | /usr/bin/fedoradev-pkgowners 2>/dev/null \
+    | sed 's+ +|+g' \
+    | awk -F "|" -v file="tmp/$FL.2" '
+        { owner[$2]=$1 }
+        END {
+          while ((getline < file) > 0) {
+            print owner[$1] "|" $0
+          }
+        }' | sort -df -t "|" -k 1 -k 2 -k 3 > "tmp/$FL.3"
+
+  awk -F "|" '
+    ($14 != "Link") { source[$10] = $3 "-" $4
+                      out[$0] = $0 "|" }
+    ($14 == "Link") { link[$0] = $20 }
+    END {
+      for (line in link) {
+        out[line] = line "|" source[link[line]]
+      }
+      n = asort(out)
+      for (i = 1; i <= n; i++) print out[i]
+    }' "tmp/$FL.3" > "tmp/$FL.4"
+
+  cat "tmp/$FL.4" \
+    | sort -df -t "|" -k 1 -k 2 -k 3 -k 4n -k 11 -k 12 -k 10 \
+    | sed 's=$=|=g' | sed 's=|0|=||=g' | sed 's=|0|=||=g' | sed 's=|\+$==g' \
+    >> "$FL"
+
+fi
 
 awk -F "|" '
-  $13 != "Link" { source[$9] = $2 "-" $3
-                  out[$0] = $0 "|" }
-  $13 == "Link" { link[$0] = $19 }
-  END {
-    for (line in link) {
-      out[line] = line "|" source[link[line]]
-    }
-    n = asort(out)
-    for (i = 1; i <= n; i++) print out[i]
-  }' "tmp/$FL.2" > "$FL"
-
-
-awk -F "|" '
-  $15 != "" { out[$1 "|" $2 "|" $9 "|" $15] = $0 }
+  NR == 1 { print $0 }
+  (NR > 1) && ($16 != "") {
+    out[$2 "|" $3 "|" $10 "|" $16] = $0
+  }
   END {
     n = asort(out)
     for (i = 1; i <= n; i++) print out[i]
   }' "$FL" > "$FLNM"
 
+echo "Maintainer|SRPM|RPM|File" > "$TSUM"
 }
 
 
 analyse() {
 
 echo ""
-echo "▶▶▶ Conducting tests…"
+echo "Conducting tests:"
 echo ""
-
-echo "SRPM|RPM|File" > "$TSUM"
 
 
 echo -n "— "
 test_help outside-usr-share-fonts title }
 
-awk -F '|' '($13 != "Link") && ($21!="X") && \
-            ($9 !~ /^\/usr\/share\/fonts\//)' "$FL" > tmp/tmp.csv
+awk -F '|' '(NR > 1) && ($14 != "Link") && ($22!="X") && \
+            ($10 !~ /^\/usr\/share\/fonts\//)' "$FL" \
+  | sort -df -t "|" > tmp/tmp.csv
 
-list-rpm tmp/tmp.csv
+list_rpm tmp/tmp.csv
 test_wrapup outside-usr-share-fonts tmp/tmp.csv "$TSUM"
 
 
 echo -n "— "
 test_help without-rpm-metadata title
 
-awk -F '|' '($13 != "Link") && ($21!="X") && \
-            ($6 != "M")' "$FL" > tmp/tmp.csv
+awk -F '|' '(NR > 1) && ($14 != "Link") && ($22!="X") && \
+            ($7 != "M")' "$FL" \
+  | sort -df -t "|" > tmp/tmp.csv
 
-list-rpm tmp/tmp.csv
+list_rpm tmp/tmp.csv
 test_wrapup without-rpm-metadata tmp/tmp.csv "$TSUM"
 
 
 echo -n "— "
 test_help family-mixing title
 
-awk -F '|' '($10 != "")
-    {
-      rpm = $2 "-" $3 "." $4
-      if ( ! family[rpm] ) { family[rpm] = $10 }
-      else { if ( family[rpm] != $10 ) { mixed[rpm] = 1 } }
+awk -F '|' '
+  (NR > 1) && ($11 != "") {
+    rpm = $3 "-" $4 "." $5
+    files[rpm] = files[rpm] $0 "#"
+    if ( ! family[rpm] ) {
+      family[rpm] = $11
     }
-    END {
-      for ( rpm in mixed ) { print rpm }
-    }' "$FL" | while read rpm ; do
-      awk -F '|' -v rpm="$rpm" '(($2 "-" $3 "." $4) == rpm)' "$FL"
-    done > tmp/tmp.csv
+    else {
+      if (family[rpm] != $11) {
+        mixed[rpm] = 1
+      }
+    }
+  }
+  END {
+    for (rpm in mixed) {
+      sub("#$", "", files[rpm])
+      split(files[rpm], lines,"#")
+      for (l in lines) {
+        print lines[l]
+      }
+    }
+  }' "$FL" \
+  | sort -df -t "|" > tmp/tmp.csv
 
-list-rpm tmp/tmp.csv
+list_rpm tmp/tmp.csv
 test_wrapup family-mixing tmp/tmp.csv "$TSUM"
 
 
 echo -n "— "
 test_help duplicated-file title
 
-awk -F '|' '$21!="X" { print $15 }' "$FLNM" | sort | uniq -d \
-  | while read checksum ; do
-    awk -F '|' -v checksum="$checksum" '$15==checksum' "$FLNM"
-done > tmp/tmp.csv
+awk -F '|' '
+  (NR > 1) && ($22 != "X") {
+    files[$16] = files[$16] $0 "#"
+  }
+  END {
+    for (checksum in files) {
+      sub("#$", "", files[checksum])
+      count = split(files[checksum], lines,"#")
+      if (count > 1) {
+        for (l in lines) {
+          print lines[l]
+        }
+      }
+    }
+  }' "$FLNM" \
+  | sort -g -t "|" -k 16 > tmp/tmp.csv
 
-awk -F '|' '$21!="X" { print $15 }' tmp/tmp.csv | uniq \
-  | while read checksum ; do
-    awk -F '|' -v checksum="$checksum" '$15==checksum \
-        { if ( $6 == "M" ) print $9 "|[" $2 "." $4 "]" ;
-          else             print $9 "|"  $2 "." $4  }' \
-    tmp/tmp.csv | column -t -s '|' | pretty_indent
-  done
+[ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
+awk -F '|' '
+  {
+    rpm = $3
+    if ( $7 == "M" ) { rpm = "[" rpm "]" }
+    sub(".*/", "…/", $10)
+    print rpm "|" $16 "|" $10 "#(" $11 ", " $12 ")"
+  }' tmp/tmp.csv | enum_rpm
 
 test_wrapup duplicated-file tmp/tmp.csv "$TSUM"
-
 
 echo -n "— "
 test_help duplicated-face-ext title
 
-rm -f tmp/tmp.csv
-touch tmp/tmp.csv
-awk -F '|' '($10 != "") && ($11 != "") \
-    { print $2 "-" $3 "." $4 "|" $10 "|" $11 }' "$FLNM" \
-    | sort | uniq | awk -F '|' '{ print $2 "|" $3 }' \
-    | sort | uniq -d | while read face ; do
-    awk -F '|' -v face="$face" '($10 "|" $11)==face' "$FLNM" > tmp/tmp1.csv
-    packages=$(awk -F '|' '{ if ( $6 == "M" ) print "[" $2 "]" ; \
-                             else print $2 }' tmp/tmp1.csv \
-               | sort | uniq | while read rpm ; do echo -n "$rpm " ; done)
-    count=$(awk -F '|' '{ print $2 "-" $3 "." $4 }' tmp/tmp1.csv \
-            | sort | uniq | wc -l)
-    cat tmp/tmp1.csv >> tmp/tmp.csv
-    echo "$count|$face|$packages"
-  done | sort -nr | column -t -s '|' | pretty_indent
+awk -F '|' '
+  (NR > 1) && ($11 != "") && ($12 != "") {
+    face = $11 "|" $12
+    rpm  = $3  "-" $4 "." $5
+    files[face] = files[face] $0 "#"
+    if ( ! loc[face] ) { loc[face] = rpm }
+    else {
+      if (loc[face] != rpm) {
+        duplicated[face] = 1
+      }
+    }
+  }
+  END {
+    for (face in duplicated) {
+      sub("#$", "", files[face])
+      split(files[face], lines,"#")
+      for (l in lines) {
+        print lines[l]
+      }
+    }
+  }' "$FLNM" \
+  | sort -df -t "|" -k 11 -k 12 > tmp/tmp.csv
+
+[ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
+awk -F '|' '
+  {
+    rpm = $3
+    if ( $7 == "M" ) { rpm = "[" rpm "]" }
+    sub(".*/", "…/", $10)
+    print rpm "|" $11 ", " $12 "|" $10
+  }' tmp/tmp.csv | enum_rpm
 
 test_wrapup duplicated-face-ext tmp/tmp.csv "$TSUM"
 
@@ -1235,42 +1359,36 @@ test_wrapup duplicated-face-ext tmp/tmp.csv "$TSUM"
 echo -n "— "
 test_help fc-query title
 
-awk -F '|' '($13 != "Link") && ($21!="X") && \
-            ($12 == "")' "$FL" > tmp/tmp.csv
+awk -F '|' '(NR > 1) && ($14 != "Link") && ($22!="X") && \
+            ($13 == "")' "$FL" > tmp/tmp.csv
 
-[ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
-awk -F '|' '{ print $2 "-" $3 "." $4 }' tmp/tmp.csv | uniq \
-  | while read rpm ; do
-    awk -F '|' -v rpm="$rpm" '($2 "-" $3 "." $4) == rpm \
-        { sum+=1 ; srpm =$1 } END \
-        { print sum "|" rpm "|(" srpm ")|" }' tmp/tmp.csv
-  done | sort -nr | column -t -s '|' | pretty_indent
-
+list_rpm tmp/tmp.csv
 test_wrapup fc-query tmp/tmp.csv "$TSUM"
 
 
 echo -n "— "
 test_help libmagic title
 
-awk -F '|' '($13 != "Link") && ($21!="X") && \
-            ($13 !~ /font/) && ($13 !~ /Font/)' "$FL" > tmp/tmp.csv
+awk -F '|' '(NR > 1) && ($14 != "Link") && ($22!="X") && \
+            ($14 !~ /font/) && ($14 !~ /Font/)' "$FL" > tmp/tmp.csv
 
-[ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
-awk -F '|' '{ print $2 "-" $3 "." $4 }' tmp/tmp.csv | uniq \
-  | while read rpm ; do
-    awk -F '|' -v rpm="$rpm" '($2 "-" $3 "." $4) == rpm \
-        { sum+=1 ; srpm =$1 } END \
-        { print sum "|" rpm "|(" srpm ")|" }' tmp/tmp.csv
-  done | sort -nr | column -t -s '|' | pretty_indent
-
+list_rpm tmp/tmp.csv
 test_wrapup libmagic tmp/tmp.csv "$TSUM"
 
 
 echo -n "— "
 test_help broken-symlink title
 
-awk -F '|' '($13 == "Link") && ($20 == "")' "$FL" > tmp/tmp.csv
-awk -F '|' '{ print $9 " → " $19 "|" $2 "-" $3 "." $4  }' tmp/tmp.csv \
+awk -F '|' '(NR > 1) && ($14 == "Link") && ($21 == "")' "$FL" > tmp/tmp.csv
+
+[ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
+awk -F '|' '
+  {
+    rpm = $3
+    if ( $7 == "M" ) { rpm = "[" rpm "]" }
+    sub(".*/", "…/", $10)
+    print $10 " → " $20 "|" rpm
+  }' tmp/tmp.csv \
   | column -t -s "|" | pretty_indent
 
 test_wrapup broken-symlink tmp/tmp.csv "$TSUM"
@@ -1279,144 +1397,165 @@ test_wrapup broken-symlink tmp/tmp.csv "$TSUM"
 echo -n "— "
 test_help rpmlint title
 
-awk -F '|' '($13 != "Link") && ($7 != "0")' "$FL" > tmp/tmp.csv
+awk -F '|' '(NR > 1) && ($14 != "Link") && ($9 != "0")' "$FL" > tmp/tmp.csv
 
-list-rpm tmp/tmp.csv
+list_rpm tmp/tmp.csv
 test_wrapup rpmlint tmp/tmp.csv "$TSUM"
 
 
 echo -n "— "
 test_help mixed-with-non-font-data title
 
-awk -F '|' '($13 != "Link") && ($21!="X") && \
+awk -F '|' '(NR > 1) && ($14 != "Link") && ($22!="X") && \
             ($8 != "0")' "$FL" > tmp/tmp.csv
 
-list-rpm tmp/tmp.csv
+list_rpm tmp/tmp.csv
 test_wrapup mixed-with-non-font-data tmp/tmp.csv "$TSUM"
 
 
 echo -n "— "
 test_help arch-package title
 
-awk -F '|' '($13 != "Link") && ($21!="X") && \
-            ($4 != "noarch")' "$FL" > tmp/tmp.csv
+awk -F '|' '(NR > 1) && ($14 != "Link") && ($22!="X") && \
+            ($5 != "noarch")' "$FL" > tmp/tmp.csv
 
-[ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
-awk -F '|' '{ print $2 "." $4 "|" $6 }' tmp/tmp.csv | sort | uniq \
-  | awk -F '|' '{ if ( $2 == "M" ) list=(list " [" $1 "]") ;
-                              else list=(list " "  $1    ) } END \
-                { print list }' | pretty_indent
-
+list_rpm tmp/tmp.csv
 test_wrapup arch-package tmp/tmp.csv "$TSUM"
 
 
 echo -n "— "
 test_help bad-rpm-naming title
 
-awk -F "|" '($13 != "Link") && ($21!="X") && \
-            $2 !~ /^[0-9abcdefghijklmnopqrstuvwxyz\.-]*-fonts$/' "$FL" \
+awk -F "|" '(NR > 1) && ($14 != "Link") && ($22!="X") && \
+            $3 !~ /^[0-9abcdefghijklmnopqrstuvwxyz\.-]*-fonts$/' "$FL" \
             > tmp/tmp.csv
 
-list-rpm tmp/tmp.csv
+list_rpm tmp/tmp.csv
 test_wrapup bad-rpm-naming tmp/tmp.csv "$TSUM"
 
 
 echo -n "— "
 test_help bad-family-naming title
 
-rm -f tmp/tmp.csv
-touch tmp/tmp.csv
-awk -F "|" '{ print $10 }' "$FL" | sort | uniq \
-  | while read family ; do
-    echo -n "$family|"
-    echo " $family " | sed "s=[ \t_\.-]\+= =g"
-  done > tmp/tmp1.csv
-for token in Book Normal Regular Upright ita ital italic cursive \
-             kursiv inclined oblique backslanted backslant slanted \
-             extra_compressed ext_compressed ultra_compressed \
-             ultra_condensed ultra_cond UltraCondensed compressed \
-             extra_condensed ext_condensed extra_cond ext_cond \
-             ExtraCondensed narrow compact semi_condensed semi_cond \
-             SemiCondensed wide semi_expanded semi_extended SemiExpanded \
-             extra_expanded ext_expanded extra_extended ext_extended \
-             ExtraExpanded ultra_expanded ultra_extended UltraExpanded \
-             condensed cond expanded extended extra_thin ext_thin \
-             ultra_thin Thin extra_light ext_light ultra_light ExtraLight \
-             semi_bold demi_bold DemiBold extra_bold ext_bold ultra_bold \
-             ExtraBold extra_black ext_black ultra_black ExtraBlack bold \
-             light medium black heavy nord demi ultra ; do
-  token=$(echo " $token " | sed 's+_+ +g')
-  awk -F "|" -v IGNORECASE=1 -v token="$token" \
-  '$2 ~ token { print $1 }' tmp/tmp1.csv
-done | sort | uniq | while read family ; do
-  awk -F "|" -v family="$family" '$10 == family' "$FL" >> tmp/tmp.csv
-done
+awk -F "|" -v wws="$wws_patterns" '
+  BEGIN {
+    na = split(wws, attributes, "~")
+    for (a = 1 ; a <= na ; a++ ) {
+      nb = split(attributes[a], blocks, "#")
+      for (b = 2 ; b <= nb ; b++ ) {
+        nal = split(blocks[b], aliases, "|")
+        for (al = 2 ; al <= nal ; al++ ) {
+          matchlist = matchlist aliases[al] "|"
+        }
+      }
+    }
+    sub("\\|$","",matchlist)
+    nmatch = split(matchlist,matches,"|")
+  }
+  (NR > 1) && ($11 != "") {
+    family = tolower(gensub(/[ \t_\.-]+/," ","G",$11))
+    sub("^ ", "", family)
+    sub(" $", "", family)
+    file[family] = file[family] $0 "#"
+  }
+  END {
+    for (family in file) {
+      i = 1
+      nfamily = family
+      while ((i <= nmatch) && (family == nfamily)) {
+        sub( " " matches[i] "$", "", nfamily)
+        i++
+      }
+      if (family != nfamily) {
+        sub("#$", "", file[family])
+        split(file[family],lines,"#")
+        for (l in lines) { print lines[l] }
+      }
+    }
+  }' "$FL" \
+  | sort -df -t "|" -k 11 -k 3 -k 2 > tmp/tmp.csv
 
-awk -F "|" '{ print $10 }' tmp/tmp.csv | sort | uniq \
-  | while read family ; do
-    rpmlist=$(awk -F "|" -v family="$family" '$10 == family \
-      { if ( $6 == "M" ) print "[" $2 "]" ; \
-                    else print     $2     }' tmp/tmp.csv \
-      | sort | uniq | while read rpm ; do echo -n "$rpm " ; done)
-    echo "$family|$rpmlist"
-  done | column -t -s '|' | pretty_indent
+[ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
+awk -F '|' '
+  {
+    rpm = $3
+    if ( $7 == "M" ) { rpm = "[" rpm "]" }
+    sub(".*/", "…/", $10)
+    print rpm "|" $11 "|" $10 " " $12
+  }' tmp/tmp.csv | enum_rpm
 
 test_wrapup bad-family-naming tmp/tmp.csv "$TSUM"
 
 
-echo -n "— "
-test_help bad-style-naming title
-echo -n "   "
-
 #FIXME It would also be great to check if the naming is corrected by the
 #      fontconfig files shipped in the package, but this requires fixes in
 #      fc-scan (ability to process non-deployed fontconfig files)
-rm -f tmp/tmp.csv
-touch tmp/tmp.csv
-awk -F "|" '{ print $11 }' "$FL" | sort | uniq \
-  | while read face ; do
-    echo -ne "\b○"
-    rface=$(wws_resolve "$face" "Book Normal Regular Roman Upright")
-    echo -ne "\b◔"
-    rface=$(wws_resolve "$rface" "ita ital italic cursive kursiv inclined \
-                                  oblique backslanted backslant slanted")
-    echo -ne "\b◑"
-    rface=$(wws_resolve "$rface" "extra_compressed ext_compressed \
-                                  ultra_compressed ultra_condensed \
-                                  ultra_cond UltraCondensed compressed \
-                                  extra_condensed ext_condensed extra_cond \
-                                  ext_cond ExtraCondensed narrow compact \
-                                  semi_condensed semi_cond SemiCondensed \
-                                  wide semi_expanded semi_extended \
-                                  SemiExpanded extra_expanded ext_expanded \
-                                  extra_extended ext_extended ExtraExpanded \
-                                  ultra_expanded ultra_extended \
-                                  UltraExpanded condensed cond expanded \
-                                  extended")
-    echo -ne "\b◕"
-    rface=$(wws_resolve "$rface" "extra_thin ext_thin ultra_thin Thin \
-                                  extra_light ext_light ultra_light \
-                                  ExtraLight semi_bold demi_bold DemiBold \
-                                  extra_bold ext_bold ultra_bold ExtraBold \
-                                  extra_black ext_black ultra_black \
-                                  ExtraBlack bold light medium black heavy \
-                                  nord demi ultra")
-    if [ "$rface" != "" ] ; then
-      awk -F "|" -v face="$face" '$11 == face' "$FL" >> tmp/tmp.csv
-      echo -ne "\bx "
-    else echo -ne "\b●"
-    fi
-  done
-echo ""
+
+echo -n "— "
+test_help bad-style-naming title
+
+awk -F "|" -v wws="$wws_patterns" '
+  BEGIN {
+    na = split(wws, attributes, "~")
+    for (a = 1 ; a <= na ; a++ ) {
+      nb   = split(attributes[a], blocks, "#")
+      for (b = 2 ; b <= nb ; b++ ) {
+        nal = split(blocks[b], aliases, "|")
+        for (al = 2 ; al <= nal ; al++ ) {
+          nw = split(aliases[al], words, " ")
+          for ( w = nw ; w >= 1 ; w-- ) {
+            matchlist[a] = matchlist[a] words[w] " "
+          }
+          sub(" $","|",matchlist[a])
+        }
+      }
+      sub("\\|$","",matchlist[a])
+    }
+  }
+  (NR > 1) && ($12 != "") {
+    face = tolower(gensub(/[ \t_\.-]+/," ","G",$12))
+    sub("^ ", "", face)
+    sub(" $", "", face)
+    n = split(face, words, " ")
+    rface = ""
+    for ( i = n ; i > 1 ; i-- ) {
+      rface = rface words[i] " "
+    }
+    rface = rface words[1]
+    file[rface] = file[rface] $0 "#"
+  }
+  END {
+    for (face in file) {
+      nface = " " face " "
+      for (a = 1 ; a <= na ; a++ ) {
+        if (nface != "") {
+          nmatch = split(matchlist[a],matches,"|")
+          i = 1
+          nnface = nface
+          while ((i <= nmatch) && (nface == nnface)) {
+            sub(" " matches[i] " ", " ", nnface)
+            i++
+          }
+          nface = nnface
+        }
+      }
+      if (nface != " ") {
+        sub("#$", "", file[face])
+        split(file[face],lines,"#")
+        for (l in lines) { print lines[l] }
+      }
+    }
+  }' "$FL" \
+  | sort -df -t "|" -k 12 -k 11 -k 3 -k 2 > tmp/tmp.csv
 
 [ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
-awk -F "|" '{ print $10 ", " $11 }' tmp/tmp.csv | sort | uniq \
-  | while read fontface ; do
-    awk -F "|" -v fontface="$fontface" '($10 ", " $11) == fontface \
-      { if ( $6 == "M" ) print fontface "|" $9 "|[" $2 "]" ; \
-                    else print fontface "|" $9 "|"  $2     }' tmp/tmp.csv \
-      | sort | uniq
-  done | column -t -s '|' | pretty_indent
+awk -F '|' '
+  {
+    rpm = $3
+    if ( $7 == "M" ) { rpm = "[" rpm "]" }
+    sub(".*/", "…/", $10)
+    print rpm "|" $12 "|" $10 " (" $11 ")"
+  }' tmp/tmp.csv | enum_rpm
 
 test_wrapup bad-style-naming tmp/tmp.csv "$TSUM"
 
@@ -1424,35 +1563,50 @@ test_wrapup bad-style-naming tmp/tmp.csv "$TSUM"
 echo -n "— "
 test_help core-fonts title
 
-awk -F '|' '$21=="X"' "$FLNM" > tmp/tmp.csv
+awk -F '|' '(NR > 1) && ($22=="X")' "$FLNM" > tmp/tmp.csv
 
-list-rpm tmp/tmp.csv
+list_rpm tmp/tmp.csv
 test_wrapup core-fonts tmp/tmp.csv "$TSUM"
 
 
 echo -n "— "
 test_help font-linking title
 
-awk -F '|' '$13=="Link"' "$FL" > tmp/tmp.csv
+awk -F '|' '(NR > 1) && ($14=="Link")' "$FL" > tmp/tmp.csv
 
-list-rpm tmp/tmp.csv
+list_rpm tmp/tmp.csv
 test_wrapup font-linking tmp/tmp.csv "$TSUM"
 
 
 echo -n "— "
 test_help duplicated-face-int title
 
-awk -F '|' '($10 != "") && ($11 != "") && ($12 != "PCF") && ($12 != "Type 1") \
-    { print $2 "-" $3 "." $4 "|" $10 "|" $11 }' "$FLNM" \
-  | sort | uniq -d | while read sig ; do
-    awk -F '|' -v sig="$sig" \
-        '($12 != "PCF") && ($12 != "Type 1") && \
-         (($2 "-" $3 "." $4 "|" $10 "|" $11 ) == sig)' \
-         "$FLNM" ;
-    done > tmp/tmp.csv
+awk -F '|' '
+  (NR > 1) && ($22!="X") && \
+    ($13 != "PCF") && ($13 != "Type 1") && \
+    ($11 != "") && ($12 != "") {
+    sig = $3 "|" $4 "|" $5 "|" $11 "|" $12
+    files[sig] = files[sig] $0 "#"
+  }
+  END {
+    for (sig in files) {
+      sub("#$", "", files[sig])
+      n = split(files[sig],lines,"#")
+      if (n > 1) {
+        for (l in lines) { print lines[l] }
+      }
+    }
+  }' "$FLNM" \
+  | sort -df -t "|" -k 11 -k 12 -k 3 -k 2 > tmp/tmp.csv
 
-awk -F '|' '{ print $2 "|" $10 "|" $11 "|" $9 }' tmp/tmp.csv \
-  | column -t -s '|' | pretty_indent
+[ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
+awk -F '|' '
+  {
+    rpm = $3
+    if ( $7 == "M" ) { rpm = "[" rpm "]" }
+    sub(".*/", "…/", $10)
+    print rpm "|" $11 ", " $12 "|" $10
+  }' tmp/tmp.csv | enum_rpm
 
 test_wrapup duplicated-face-int tmp/tmp.csv "$TSUM"
 
@@ -1460,19 +1614,25 @@ test_wrapup duplicated-face-int tmp/tmp.csv "$TSUM"
 echo -n "— "
 test_help fontlint title
 
-awk -F '|' '($18 > 0)' "$FL" > tmp/tmp.csv
+awk -F '|' '(NR > 1) && ($22!="X") && ($19 > 0)' "$FL" > tmp/tmp.csv
 
-list-rpm tmp/tmp.csv
+list_rpm tmp/tmp.csv
 test_wrapup fontlint tmp/tmp.csv "$TSUM"
 
 
 echo -n "— "
 test_help no-english-metadata title
 
-awk -F '|' '($12 != "") && (($10 == "") || ($11 == ""))' "$FL" > tmp/tmp.csv
+awk -F '|' '(NR > 1) && ($22!="X") && \
+            ($13 != "") && (($11 == "") || ($12 == ""))' "$FL" > tmp/tmp.csv
 
 [ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
-awk -F '|' '{ print $9 "|" $2 "-" $3 "." $4 }' tmp/tmp.csv \
+awk -F '|' '
+  {
+    rpm = $3 "-" $4 "." $5
+    if ( $7 == "M" ) { rpm = "[" rpm "]" }
+    print $10 "|" rpm
+  }' tmp/tmp.csv \
   | column -t -s '|' | pretty_indent
 
 test_wrapup no-english-metadata tmp/tmp.csv "$TSUM"
@@ -1481,47 +1641,46 @@ test_wrapup no-english-metadata tmp/tmp.csv "$TSUM"
 echo -n "— "
 test_help partial-scripts title
 
-awk -F '|' '($16 > 0)' "$FL" > tmp/tmp.csv
+awk -F '|' '(NR > 1) && ($22!="X") && ($17 > 0)' "$FL" > tmp/tmp.csv
 
-list-rpm tmp/tmp.csv
+list_rpm tmp/tmp.csv
 test_wrapup partial-scripts tmp/tmp.csv "$TSUM"
 
 
 echo -n "— "
 test_help partial-blocks title
 
-awk -F '|' '($17 > 0)' "$FL" > tmp/tmp.csv
+awk -F '|' '(NR > 1) && ($22!="X") && ($18 > 0)' "$FL" > tmp/tmp.csv
 
-list-rpm tmp/tmp.csv
+list_rpm tmp/tmp.csv
 test_wrapup partial-blocks tmp/tmp.csv "$TSUM"
 }
 
 
 sum_up() {
 echo ""
-echo "▶▶▶ Audit results:"
+echo "Audit results:"
 echo ""
 
 echo "– packages that declare font metadata:"
-echo ""
 
-awk -F '|' '$6=="M"' "$FL" > tmp/tmp.csv
+awk -F '|' '(NR > 1) && ($7 == "M")' "$FL" > tmp/tmp.csv
 stats tmp/tmp.csv
 
 echo "☛ File size is computed as extracted, while rpm is a compressed \
 format." | pretty_indent
 echo "☛ Mid-term, files in legacy PCF or Type1 formats need to be converted \
 or removed." | pretty_indent
-
-echo "– font files in other packages (we should not find any!)"
 echo ""
 
-awk -F '|' '($6 != "M") && ($13 != "Link")' "$FL" > tmp/tmp.csv
+echo "– font files in other packages (we should not find any!)"
+
+awk -F '|' '(NR > 1) && ($7 != "M") && ($14 != "Link")' "$FL" > tmp/tmp.csv
 stats tmp/tmp.csv
 
 [ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
 echo "☛ Bad packaging may result in arched packages or mixed content." \
-| pretty_indent
+| pretty_indent && echo ""
 
 echo "– errors, warnings and suggestions:"
 echo ""
@@ -1532,20 +1691,27 @@ test_score "$TSUM"
 
 
 prepare_spam() {
+echo ""
+echo "Packing mail data…"
+
 mkdir spam
 
-for srpm in $(awk -F '|' 'FNR>1 { print $1 }' "$TSUM" | uniq) ; do
-  mkdir "tmp/$srpm/"
+find tmp -path "tmp/rpmlint~*txt" \
+      -o -path "tmp/fc-query~*.txt" \
+      -o -path "tmp/unicover~*.txt" \
+      -o -path "tmp/fontlint~*.txt" \
+  | awk -F "/" '{ rpm=gensub("^([^~]*)~(.*)-([0-9]*:.*\\.txt)$","\\2","g",$NF)
+                  print rpm "|" $0 }' > tmp/testfiles.lst
+
+for srpm in $(awk -F '|' 'FNR>1 { print $2 }' "$TSUM" | uniq) ; do
+  mkdir -p "tmp/$srpm/data"
   cp -p report.txt "tmp/$srpm/repo-report.txt"
   for file in "$FL" "$TSUM" ; do
     awk 'FNR==1' "$file" > "tmp/$srpm/$file"
-    awk -F '|' -v srpm="$srpm" 'FNR>1 && $1==srpm' "$file" >> "tmp/$srpm/$file"
+    awk -F '|' -v srpm="$srpm" 'FNR>1 && $2==srpm' "$file" >> "tmp/$srpm/$file"
   done
-  for rpm in $(awk -F '|' 'FNR>1 { print $2 }' "tmp/$srpm/$TSUM" | uniq) ; do
-    cp -p tmp/rpmlint-$rpm-*.txt "tmp/$srpm/"
-    cp -p tmp/fc-query-$rpm-*.txt \
-          tmp/unicover-$rpm-*.txt \
-          tmp/fontlint-$rpm-*.txt "tmp/$srpm/" 2>/dev/null
+  for rpm in $(awk -F '|' 'FNR>1 { print $3 }' "tmp/$srpm/$TSUM" | uniq) ; do
+    cp $(awk -F "|" -v rpm="$rpm" '$1 == rpm { print $2 }' tmp/testfiles.lst) "tmp/$srpm/data"
   done
   cat > tmp/$srpm/message.txt << EOF
 Dear packager,
@@ -1586,8 +1752,6 @@ message.
 Errors, warnings and suggestions:
 
 $(test_score "tmp/$srpm/$TSUM")
-
-
 
 Please take the appropriate measures to fix the “$srpm” package.
 I will warn you again if it is still necessary next time I am ran.
@@ -1635,12 +1799,17 @@ chmod +x spam/send-messages.sh
 }
 
 pack_data() {
+echo "Packing result data…"
+
+
 mv spam "$SPAM"
 
-mkdir "$RES/"
-cp "$FL" "$TSUM" \
-   tmp/rpmlint-*.txt tmp/fc-query-*.txt tmp/unicover-*.txt tmp/fontlint-*.txt \
-   summary.txt report.txt "$RES/"
+mkdir -p "$RES/data"
+cp "$TSUM" summary.txt report.txt "$FL" "$RES/"
+cp tmp/rpmlint~*.txt \
+   tmp/fc-query~*.txt \
+   tmp/unicover~*.txt \
+   tmp/fontlint~*.txt "$RES/data"
 
 mkdir "$SRES/"
 cp "$TSUM" summary.txt report.txt "$SRES/"
@@ -1651,15 +1820,20 @@ for report in "$RES" "$SRES" "$SPAM" ; do
   mv "$report.tar.xz" "$ORIGDIR/"
 done
 
+echo ""
+echo "Audit complete!"
+
+awk 'NR > 1' "$FL" > "tmp/$FL"
+
+(
 cat << EOF
 
-▶▶▶ Audit complete! Number of items processed:
-$(summary "$FL")
+Number of items processed:
+$(summary "tmp/$FL")
 
 1. Extracted data: $ORIGDIR/$RES.tar.xz
 2. Short summary: $ORIGDIR/$SRES.tar.xz
 3. Mail data: $ORIGDIR/$SPAM.tar.xz
-
 
 This report was generated by the repo-font-audit command from:
 http://fedoraproject.org/wiki/fontpackages
@@ -1668,6 +1842,8 @@ Please post questions, suggestions, patches or bug reports to:
 https://www.redhat.com/mailman/listinfo/fedora-fonts-list
 (subscription required)
 EOF
+) | pretty_indent
+
 }
 
 # End of function declarations
@@ -1700,16 +1876,6 @@ collect
 consolidate
 analyse | tee report.txt
 sum_up  | tee summary.txt
-
-sed -i "s=.$(echo -ne '\b')==g" report.txt
-
-cp "$FL" "tmp/$FL"
-echo "SRPM|RPM|EVR|Arch|RPM size|RPM metadata|rpmlint score|foreign data|\
-filename|family name|face name|format (fontconfig)|format (libmagic)|\
-file size|checksum|partial scripts|partial blocks|fontlint|symlink target|\
-symlink provider|core fonts use" > "$FL"
-cat "tmp/$FL" >> "$FL"
-
 prepare_spam
 pack_data
 

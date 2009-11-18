@@ -1,0 +1,18 @@
+#!/bin/sh
+# Tests if an ELF file tries to load core fonts, and reports the result
+
+if  $(nm -aDu "$3" 2> /dev/null | grep -q  '\<XLoad.*Font') ; then
+
+  [ -s "$1" -a -r "$1" ] && rpminfo=$(cat "$1") || rpminfo="||||||"
+  [ -s "$2" -a -r "$2" ] && rpmlint_score=$(cat "$2")
+
+  size=$(du -b "$3" | cut -f 1)
+  checksum=$(sha256sum "$3" | cut -d " " -f 1)
+
+  if [ -s "$4" -a -r "$4" ] ; then
+    file=$(cut -d "|" -f 1 < "$4")
+    type=$(cut -d "|" -f 2 < "$4")
+  fi
+
+  echo "$rpminfo|$rpmlint_score|$file||||$type|$size|$checksum||||||X"
+fi

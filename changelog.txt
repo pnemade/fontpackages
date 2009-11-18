@@ -1,9 +1,11 @@
 Git
+     - repo-font-audit: add fedora packager name detection
      - repo-font-audit: add core fonts use test
-     - repo-font-audit: make fontlint filtering more reliable
-     - repo-font-audit: rework messenging (again)
      - repo-font-audit: add a processed total to reassure users when no problem
-       was identified
+       is identified
+     - repo-font-audit: rework messenging (again)
+     - repo-font-audit: parallelize file tests to make it run faster
+     - repo-font-audit: rewrite several tests to make them more reliable
 1.31
      - repo-font-audit: try to sort tests by criticity
      - repo-font-audit: rework messages to make them clearer and (hopefully)

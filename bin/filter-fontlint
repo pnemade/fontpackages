@@ -1,0 +1,32 @@
+#!/bin/sh
+# Try to filter useless fontlint messages
+
+awk -F "|" '
+    NR==4               { result = $0 }
+    NR>4 && $1 !~ /^  / { result = result "\n" $0 }
+    NR>4 && $1  ~ /^  / { gsub("^  ", "|",$1)
+                        result = result $0 }
+    END { print result }' \
+  | awk -F "|" '
+    $1 ~ /Validation/ {
+      l=2
+      while (l<NF) {
+        print $l
+        l++
+      }
+      print $NF
+    }
+    $1 !~ /Validation/ { print }' \
+  | awk -F "|" '
+    NR==1              { result = $0 }
+    NR>1 && $1 !~ /^ / { result = result "\n" $0 }
+    NR>1 && $1  ~ /^ / { gsub("^ ", "|",$1)
+                         result = result $0 }
+    END { print result }' \
+  | grep -v -e "^The following table(s) in the font have been ignored by FontForge" \
+            -e "^The glyph named .* is mapped to .*But its name indicates it should be mapped to .*." \
+            -e "^A glyph uses at least one, but not all, anchor classes in a subtable" \
+            -e "^This font contains both a .* table and a .* table." \
+            -e "^Missing Points at Extrema" \
+            -e "^Self Intersecting Glyph" \
+            -e "^Wrong Direction"
