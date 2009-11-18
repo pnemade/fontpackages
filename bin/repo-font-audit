@@ -19,7 +19,7 @@ EOF_USAGE
 exit 1
 }
 
-DATADIR=
+DATADIR="$(dirname $0)/../private"
 
 # WWS face attribute patterns. Definitions taken from:
 # http://blogs.msdn.com/text/attachment/2249036.ashx
@@ -1142,31 +1142,40 @@ cat "$FL.1" | while read line ; do
             mv "$file" "$dfile"
           done
     fi
-
-    # There must be a cleaner way to do this
-    parallelism=$(($(cat /proc/cpuinfo | grep processor | wc -l)+1))
-    make -s -j $parallelism -f "$DATADIR/repo-font-audit.mk" $targets
-
-    [ -a mk.data.targets ] && cat $(cat mk.data.targets) >> "../$FL.2" 
-
-    if [ -a mk.file.targets ] ; then
-      for ext in fontlint unicover fc-query ; do
-        find tmp -name "*\.rfo\.$ext" \
-          | while read file ; do
-              dest=$(echo "$file" | sed "s=/=_=g" \
-       	                          | sed "s=^tmp_=../$ext~$rpm~=" \
-                                  | sed "s=\.rfo\.$ext=.txt=g" )
-              [ -s "$file" ] && mv "$file" "$dest" || :
-            done
-      done
-    fi
-    mv rpmlint.txt "../rpmlint~$rpm.txt"
   fi
 
+  echo ""
   cd ..
-  rm -fr "$rpm"
-  echo " ♻"
 done
+
+echo ""
+echo "Analysing files…"
+
+# There must be a cleaner way to do this
+parallelism=$(($(cat /proc/cpuinfo | grep processor | wc -l)+1))
+make -s -r -j $parallelism -f "$DATADIR/repo-font-audit.mk"
+
+cat $(find . -name "*\.rfo\.fonts" -o -name "*\.rfo\.core-fonts") > "$FL.2"
+cat */processed-font-links.txt >> "$FL.2"
+
+for ext in fontlint unicover fc-query ; do
+  find . -name "*\.rfo\.$ext" \
+     | while read file ; do
+          dest=$(echo "$file" \
+            | sed "s+./\([^/]*\)/tmp/\(.*\).rfo.$ext+$ext~\1~\2.txt+" \
+            | sed 's+/+_+g')
+          [ -s "$file" ] && mv "$file" "$dest"
+       done
+done
+
+find . -name rpmlint.txt \
+  | while read file ; do
+      dest=$(echo "$file" | sed "s+./\([^/]*\)/rpmlint.txt+rpmlint~\1.txt+")
+      [ -s "$file" ] && mv "$file" "$dest"
+    done
+
+rm -fr "*/"
+echo " ♻"
 cd ..
 }
 

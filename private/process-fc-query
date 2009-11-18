@@ -27,7 +27,6 @@ parse_localized_fc_query() {
     # We could hide problems by reporting the first label regardless of its
     # language. But this is an audit script — we do not hide problems
     echo "$fieldstring" |  awk -F "|" '{ print $1 }'
-    if [ "$fieldstring" == "" ] ; then  echo -ne "\b‽" >&2 ; fi
   else
     echo $(echo $fieldstring | cut -d '|' -f 1)
   fi
