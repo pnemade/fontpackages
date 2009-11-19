@@ -21,6 +21,9 @@ exit 1
 
 DATADIR="$(dirname $0)/../private"
 
+# Filenames with whitespace or & + makefile = !!!
+bad_pattern="[[:space:]&\:]"
+
 # WWS face attribute patterns. Definitions taken from:
 # http://blogs.msdn.com/text/attachment/2249036.ashx
 wws_patterns=$(awk -F "|" '
@@ -994,10 +997,11 @@ rm -f "$FL.2"
 cat "$FL.1" | while read line ; do
   rpm=$(echo "$line" | awk -F '|' '{ print $2 "-" $3 "." $4 }')
   rpmline=$(echo "$line" | awk -F '|' '{ print $1 "|" $2 "|" $3 "|" $4 "|" $5 }')
+  rpmd=$(echo "$rpm" | sed "s+$bad_pattern+_+g")
   echo "$line" | cut -d "|" -f 6 | grep -q "M" && metadata="M" || metadata=""
   echo -n "– $rpm "
-  mkdir "$rpm"
-  cd "$rpm"
+  mkdir "$rpmd"
+  cd "$rpmd"
   echo -n " ◔"
   rpm_loc=$(repoquery --repofrompath=$REPOID,$REPOURL --repoid=$REPOID --location "$rpm" 2>/dev/null)
   if $(echo "$rpm_loc" | grep -q -e "^file://") ; then
@@ -1139,24 +1143,21 @@ done
 echo ""
 echo "Analysing files…"
 
-# Filenames with whitespace or & + makefile = !!!
-bad_pattern="[[:space:]&\:]"
-
-mkdir -p $(find . -type d | grep "$bad_pattern" | sed "s+$bad_pattern+_+g")
+if $(find . -type d | grep -q "$bad_pattern") ; then
+  mkdir -p $(find . -type d | grep "$bad_pattern" | sed "s+$bad_pattern+_+g")
+fi
 
 find . -type f | grep "$bad_pattern" \
   | while read file ; do
       mv "$file" $(echo "$file"| sed "s+$bad_pattern+_+g")
     done
 
-rm -fr $(find . -type d | grep "$bad_pattern" | sort -r)
-
 # There must be a cleaner way to do this
 parallelism=$(($(cat /proc/cpuinfo | grep processor | wc -l)+1))
 make -s -r -j $parallelism -f "$DATADIR/repo-font-audit.mk"
 
-cat $(find . -name "*\.rfo\.fonts" -o -name "*\.rfo\.core-fonts") > "$FL.2"  2>/dev/null
-cat */processed-font-links.txt >> "$FL.2"  2>/dev/null
+datafiles=$(find . -name "*\.rfo\.fonts" -o -name "*\.rfo\.core-fonts" -o -name processed-font-links.txt)
+[ "$datafiles" != "" ] && cat "$datafiles" > "$FL.2"
 
 mkdir ../data
 for rpmlint in */rpmlint.txt ; do
@@ -1290,7 +1291,7 @@ echo -n "— "
 test_help duplicated-file title
 
 awk -F '|' '
-  (NR > 1) && ($22 != "X") {
+  (NR > 1) && ($22 != "X") && ($14 != "Link") {
     files[$16] = files[$16] $0 "#"
   }
   END {

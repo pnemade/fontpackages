@@ -16,13 +16,16 @@ add_font_ext = $(foreach file, $(FONT_TARGET_ROOTS),$(file).$(ext))
 FONT_TARGETS := $(foreach ext, $(FONT_EXTS), $(add_font_ext))
 
 CORE_FONT_TARGETS := $(subst .rfo.core-fonts.info,.rfo.core-fonts,$(shell find $(TMPDIR) -name "*\.rfo\.core-fonts\.info"))
-LINK_TARGETS := $(wildcard font-links.txt)
+endif
+
+ifneq ($(wildcard font-links.txt),)
+LINK_TARGETS := processed-font-links.txt
+endif
 
 TARGETS := $(FONT_TARGETS) $(CORE_FONT_TARGETS) $(LINK_TARGETS)
 
 ifneq ($(TARGETS),)
 TARGETS := $(TARGETS) rpmlint.txt
-endif
 endif
 
 .PHONY: $(SUBDIRS) all rfo
@@ -35,7 +38,7 @@ $(SUBDIRS) :
 ifneq ($(TARGETS),)
 rfo : $(TARGETS)
 else
-rfo : ; @echo "Nothing to do!"
+rfo : ; @echo "$(shell pwd): nothing to do!"
 endif
 
 $(TMPDIR)/%.rfo.fonts : rpm-info.txt \
