@@ -1,0 +1,178 @@
+#!/bin/sh
+# Implements a font name cleanup heuristic similar to the one described in
+# http://blogs.msdn.com/text/attachment/2249036.ashx
+
+usage() {
+cat >&2 << EOF_USAGE
+Usage: $0 <family> <style>
+<family>: font family to test
+<style>:  font style to test
+
+Example:
+$0 "DejaVu Sans" "Condensed Bold Oblique"
+
+EOF_USAGE
+exit 1
+}
+
+awk --re-interval -v family="$1" -v face="$2" '
+  BEGIN {
+    # regular is a slant but is special-cased in naming
+    attrs = "regular|slant|stretch|weight"
+
+    blocks["regular"] = "Regular"
+    blocks["slant"]   = "Italic|Oblique"
+    blocks["stretch"] = "UltraCondensed|ExtraCondensed|SemiCondensed|SemiExpanded|ExtraExpanded|UltraExpanded|Condensed|Expanded"
+    blocks["weight"]  = "Thin1|ExtraLight|DemiBold1|ExtraBold1|Bold|Thin2|Light|Medium|Black|ExtraBlack|DemiBold2|ExtraBold2"
+
+    aliases["Regular"]  = "Book|Normal|Regular|Roman|Upright"
+
+    aliases["Italic"]  = "ita|ital|Italic|cursive|kursiv"
+    aliases["Oblique"] = "inclined|Oblique|backslanted|backslant|slanted"
+
+    aliases["UltraCondensed"] = "extra compressed|ext compressed|ultra compressed|ultra condensed|ultra cond|UltraCondensed"
+    aliases["ExtraCondensed"] = "compressed|extra condensed|ext condensed|extra cond|ext cond|ExtraCondensed"
+    aliases["SemiCondensed"]  = "narrow|compact|semi condensed|semi cond|SemiCondensed"
+    aliases["SemiExpanded"]   = "wide|semi expanded|semi extended|SemiExpanded"
+    aliases["ExtraExpanded"]  = "extra expanded|ext expanded|extra extended|ext extended|ExtraExpanded"
+    aliases["UltraExpanded"]  = "ultra expanded|ultra extended|UltraExpanded"
+    aliases["Condensed"]    = "Condensed|cond"
+    aliases["Expanded"]     = "extended|Expanded|extended"
+
+    aliases["Thin1"]    = "extra thin|ext thin|ultra thin"
+    aliases["ExtraLight"] = "extra light|ext light|ultra light|UltraLight|ExtraLight"
+    aliases["DemiBold1"]  = "semi bold|demi bold|SemiBold|DemiBold"
+    aliases["ExtraBold1"] = "extra bold|ext bold|ultra bold|UltraBold|ExtraBold"
+    aliases["Bold"]     = "Bold"
+    aliases["Thin2"]    = "thin"
+    aliases["Light"]    = "Light"
+    aliases["Medium"]     = "Medium"
+    aliases["Black"]    = "Black|heavy|nord"
+    aliases["ExtraBlack"] = "extra black|ext black|ultra black|UltraBlack|ExtraBlack"
+    aliases["DemiBold2"]  = "demi"
+    aliases["ExtraBold2"] = "ultra"
+
+    nat = split(attrs,attributes,"|")
+    for ( at = 1 ; at <= nat ; at++ ) {
+      nb = split(blocks[attributes[at]],b_l,"|")
+      for ( b = 1 ; b <= nb ; b++ ) {
+        nal = split(tolower(aliases[b_l[b]]),al_l,"|")
+        aliases[b_l[b]] = ""
+        for ( al = 1 ; al <= nal ; al++ ) {
+          # WWS uses reverse-matching everywhere
+          nw = split(al_l[al], words," ")
+          for (w = nw ; w >= 1 ; w-- ) {
+            aliases[b_l[b]] = aliases[b_l[b]] words[w] " "
+          }
+          sub(" $", "|", aliases[b_l[b]])
+        }
+        sub("\\|$", "", aliases[b_l[b]])
+      }
+    }
+
+    nf = split(family "|" face, s, "|")
+    # This is more aggressive than demanded by WWS
+    for ( i = 1 ; i <= nf ; i++ ) {
+      fs[i] = gensub("&", " and ", "g", s[i])
+      fs[i] = gensub("\\([[:digit:]]){3}", " ", "g", fs[i])
+      fs[i] = gensub("([[:digit:]]+)", " \\1 ", "g", fs[i])
+      fs[i] = gensub("([[:lower:]])([[:upper:]])([[:lower:]])", "\\1 \\2\\3", "g", fs[i])
+      fs[i] = gensub("[ \t_\\.-]+", " ", "g", fs[i])
+      fs[i] = tolower(fs[i])
+      rfs[i] = ""
+      nw = split(fs[i], words, " ")
+      for (w = nw ; w >= 1 ; w-- ) {
+        rfs[i] = rfs[i] words[w] " "
+      }
+      sub("^"," ",rfs[i])
+    }
+
+    rffamily = rfs[1]
+    rfface = rfs[2]
+
+    # Remove the rightmost occurrence of a regular face name
+    nrfface = rfface
+    control = nrfface
+    nb = split(blocks[attributes[1]],b_l,"|")
+    b = 1
+    while ((b <= nb) && (nrfface == control)) {
+      nal = split(aliases[b_l[b]],al_l,"|")
+      al = 1
+      while ((al <= nal) && (nrfface == control)) {
+        sub(" " al_l[al] " ", " ", nrfface)
+        al++
+      }
+      b++
+    }
+    # We should canonalize Regular too but too many fonts get it wrong and
+    # it is not terribly important
+    if (nrfface != control) {
+      canonical_attribute["regular"] = toupper(substr(al_l[al-1], 1,1)) substr(al_l[al-1], 2)
+    }
+
+    # Append FaceName to FontFamily
+    sub(nrfface, " ", rffamily)
+    nrffont = gensub("  ", " ", "g", nrfface rffamily)
+
+    # Process other qualifiers
+    for ( at = 2 ; at <= nat ; at++ ) {
+      canonical_attribute[attributes[at]] = ""
+      control = nrffont
+      nb = split(blocks[attributes[at]],b_l,"|")
+      b = 1
+      while ((b <= nb) && (nrffont == control)) {
+        nal = split(aliases[b_l[b]],al_l,"|")
+        al = 1
+        while ((al <= nal) && (nrffont == control)) {
+          sub(" " al_l[al] " ", " ", nrffont)
+          al++
+        }
+        b++
+      }
+      if (nrffont != control) {
+        canonical_attribute[attributes[at]] = gensub("[[:digit:]]", "", "g", b_l[b-1])
+      }
+    }
+
+    cnface = canonical_attribute["stretch"] " " canonical_attribute["weight"] " " canonical_attribute["slant"]
+    sub("  ", " ", cnface)
+    sub(" $", "", cnface)
+    sub("^ ", "", cnface)
+    if (cnface == "") {
+      if ( canonical_attribute["regular"] != "" )
+           { cnface = canonical_attribute["regular"] }
+      else { cnface = "Regular" }
+    }
+
+    # Make sure there are no stray attributes left
+    for ( at = 1 ; at <= nat ; at++ ) {
+      nb = split(blocks[attributes[at]],b_l,"|")
+      for ( b = 1 ; b <= nb ; b++ ) {
+        nal = split(aliases[b_l[b]],al_l,"|")
+        for ( al = 1 ; al <= nal ; al++ ) {
+          sub(" " al_l[al] " ", " ", nrffont)
+        }
+      }
+    }
+
+    cnfamily = ""
+    nw = split(nrffont, words, " ")
+    for (w = nw ; w >= 1 ; w-- ) {
+      cnfamily = cnfamily toupper(substr(words[w], 1,1)) substr(words[w], 2) " "
+    }
+    sub(" $", "", cnfamily)
+
+    # Keep the original family name if it matches since some of the
+    # operations performed before, while necessary for attribute detection,
+    # can be needlessly destructive on legitimate family names
+    nfamily = gensub("([[:digit:]]+)", " \\1 ", "g", family)
+    nfamily = gensub("([[:lower:]])([[:upper:]])([[:lower:]])", "\\1 \\2\\3", "g", nfamily)
+    sub("-", " ", nfamily)
+    sub(" +", " ", nfamily)
+    sub(" $", "", nfamily)
+    sub("^ ", "", nfamily)
+
+    if ( tolower(nfamily) == tolower(cnfamily) ) { cnfamily = family }
+
+    print cnfamily "\t" cnface
+  }'
