@@ -1,6 +1,8 @@
 Git
-     - repo-font-audit: add fedora packager name detection
+     - repo-font-audit: replace the two existing WWS tests with a more
+       comprehensive one, and externalize it
      - repo-font-audit: add core fonts use test
+     - repo-font-audit: add fedora packager name detection
      - repo-font-audit: add a processed total to reassure users when no problem
        is identified
      - repo-font-audit: rework messenging (again)

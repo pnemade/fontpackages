@@ -7,6 +7,6 @@ if [ -s "$3" -a -r "$3" ] ; then
   [ -s "$2" -a -r "$2" ] && rpmlint_score=$(cat "$2")
 
   awk -F '|' -v prefix="$rpminfo|$rpmlint_score" '
-    {  print prefix "|" $1 "||||Link||||||" $2  }' "$3"
+    {  print prefix "|" $1 "||||||Link||||||" $2  }' "$3"
 
 fi

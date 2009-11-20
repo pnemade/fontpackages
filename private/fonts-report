@@ -23,7 +23,12 @@ fi
 
 partial_scripts=$(filter-langcover < "$8" | wc -l)
 
+if [ "$family" != "" -o "$style" != "" ] ; then
+  fnaming=$(fix-font-naming "$family" "$style")
+  ffamily=$(echo "$fnaming" | cut -f 1)
+  fstyle=$(echo "$fnaming" | cut -f 2)
+fi
 
-echo "$rpminfo|$rpmlint_score|$file|$family|$style|$format|\
+echo "$rpminfo|$rpmlint_score|$file|$family|$style|$ffamily|$fstyle|$format|\
 $type|$size|$checksum|$partial_scripts|$partial_blocks|$fontlint"
 

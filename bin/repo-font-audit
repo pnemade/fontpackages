@@ -24,55 +24,6 @@ DATADIR="$(dirname $0)/../private"
 # Filenames with whitespace or & + makefile = !!!
 bad_pattern="[[:space:]&\:]"
 
-# WWS face attribute patterns. Definitions taken from:
-# http://blogs.msdn.com/text/attachment/2249036.ashx
-wws_patterns=$(awk -F "|" '
-  BEGIN {
-    na = split("slant|stretch|weight",attributes,"|")
-
-    blocks["slant"]   = "Normal|Italic|Oblique"
-    blocks["stretch"] = "UltraCondensed|ExtraCondensed|SemiCondensed|SemiExpanded|ExtraExpanded|UltraExpanded|Condensed|Expanded"
-    blocks["weight"]  = "Thin1|ExtraLight|DemiBold1|ExtraBold1|Bold|Thin2|Light|Medium|Black|ExtraBlack|DemiBold2|ExtraBold2"
-
-    aliases["Normal"]  = "Book|Normal|Regular|Roman|Upright"
-    aliases["Italic"]  = "ita|ital|Italic|cursive|kursiv"
-    aliases["Oblique"] = "inclined|Oblique|backslanted|backslant|slanted"
-
-    aliases["UltraCondensed"] = "extra compressed|ext compressed|ultra compressed|ultra condensed|ultra cond|UltraCondensed"
-    aliases["ExtraCondensed"] = "compressed|extra condensed|ext condensed|extra cond|ext cond|ExtraCondensed"
-    aliases["SemiCondensed"]  = "narrow|compact|semi condensed|semi cond|SemiCondensed"
-    aliases["SemiExpanded"]   = "wide|semi expanded|semi extended|SemiExpanded"
-    aliases["ExtraExpanded"]  = "extra expanded|ext expanded|extra extended|ext extended|ExtraExpanded"
-    aliases["UltraExpanded"]  = "ultra expanded|ultra extended|UltraExpanded"
-    aliases["Condensed"]      = "Condensed|cond"
-    aliases["Expanded"]       = "extended|Expanded|extended"
-
-    aliases["Thin1"]      = "extra thin|ext thin|ultra thin"
-    aliases["ExtraLight"] = "extra light|ext light|ultra light|UltraLight|ExtraLight"
-    aliases["DemiBold1"]  = "semi bold|demi bold|SemiBold|DemiBold"
-    aliases["ExtraBold1"] = "extra bold|ext bold|ultra bold|UltraBold|ExtraBold"
-    aliases["Bold"]       = "Bold"
-    aliases["Thin2"]      = "thin"
-    aliases["Light"]      = "Light"
-    aliases["Medium"]     = "Medium"
-    aliases["Black"]      = "Black|heavy|nord"
-    aliases["ExtraBlack"] = "extra black|ext black|ultra black|UltraBlack|ExtraBlack"
-    aliases["DemiBold2"]  = "demi"
-    aliases["ExtraBold2"] = "ultra"
-
-    for (a = 1 ; a <= na ; a++ ) {
-      out = out attributes[a] "#"
-      nb  = split(blocks[attributes[a]], bs, "|")
-      for ( b = 1 ; b <= nb ; b++ ) {
-        out = out bs[b] "|" tolower(aliases[bs[b]]) "#"
-      }
-      sub("#$","~",out)
-    }
-    sub("~$","",out)
-    print out
-  }')
-
-
 pretty_indent() {
   fold -s -w $(($(tput cols) - 2)) \
   | while read line ; do echo "  $line" ; done
@@ -176,7 +127,7 @@ summary "$s_datafile"
 
 if [ $(cat "$s_datafile" | wc -l) -gt 0 ] ; then
   (echo "Format|Files|rpm|srpm|Files (MiB)|rpm (MiB)"
-  awk -F '|' '$13 != "" { print $0 "|" $13 }' "$s_datafile" > tmp/tmp.s.csv
+  awk -F '|' '$13 != "" { print $0 "|" $15 }' "$s_datafile" > tmp/tmp.s.csv
   substats tmp/tmp.s.csv) | column -t -s '|' | pretty_indent
   echo ""
 
@@ -217,6 +168,7 @@ awk -F '|' '
 # patterns may include # as separators
 enum_rpm() {
 awk -F '|' '
+  BEGIN { print "" }
   {
     rpm = $1
     key = $2
@@ -229,17 +181,21 @@ awk -F '|' '
       total = split(files[key], lines,"|")
       pb[total] = pb[total] key "|"
     }
-    n=asorti(pb, sorted)
+    n = asorti(pb, sorted)
     for (i = n; i >= 1; i--) {
       total = sorted[i]
       sub("\\|$", "", pb[total])
       split(pb[total], keys,"|")
-      for (k in keys) {
-        print gensub("#", ", ", "G", keys[k])
-        split(files[keys[k]], lines, "|")
-        for (l in lines) {
+      nk = asort(keys, sortedkeys)
+      for ( k = 1 ; k <= nk ; k++ ) {
+        key = sortedkeys[k]
+        print gensub("#", ", ", "g", key)
+        split(files[key], lines, "|")
+        nl = asort(lines, sortedlines)
+        for ( l = 1 ; l <= nl ; l++ ) {
           print "  " gensub("#", "\t", "G", lines[l])
         }
+        print ""
       }
     }
   }' | pretty_indent
@@ -513,77 +469,51 @@ EOF
         ;;
     esac
     ;;
-  "bad-family-naming")
+  "bad-naming")
     case "$2" in
       "title")
-        echo "Warning: fonts that declare style attributes in family names"
+        echo "Warning: bad font naming"
         ;;
       "help")
         cat << EOF
 Font upstream task, with packager workarounds
 
-This test checks if font family names do not include WWS “Width
-(Stretch)”, “Weight”, “Slope (Slant/Style)” face qualifiers¹. To be
-properly processed by applications those qualifiers need to be declared in
-style names.
+The font naming declared by one or more files in the package is not a
+canonical WWS¹ naming or has some other naming problem. As noted by Adobe²
+the W3C CSS font family model used in WPF/WWS is less than ideal, but it is
+a standard and applications expect it.
 
-Since *nix applications do not workaround bad font naming with dynamic
-renaming heuristics (unlike Microsoft WPF), achieving consistent naming
-requires fixing it directly in the font files. For this reason we test
-font family naming separately from font style naming.
+This script attempted to apply some heuristics to fix this naming, and
+computed different values than those in the font files.
 
-To pass this test make sure font names do not include any “Width
-(Stretch)”, “Weight”, “Slope (Slant/Style)” qualifier defined in the WWS
-whitepaper¹.
+That means some of those files are using non-standard, fuzzy,
+self-conflicting, confusing names. A correct naming:
+1. only includes “Width”, “Weight”, “Slant” qualifiers in its style name;
+2. does not declare more than one of each;
+3. declares them using the canonical keywords defined in the WWS paper;
+4. declares them in “Width”, “Weight”, “Slant” order;
+3. uses spaces to separate them;
+4. does not use “Width”, “Weight”, “Slant” qualifiers in its family name;
+5. does not use symbols such as & that cause problems in SGML/XML/HTML
+   contexts. 
 
+The canonical naming computed by this script was printed at test time.
+Please note that it is only correct in a formal sense: no attempt was made
+to check that the computed naming corresponds to actual font
+characteristics. It still needs human review (when the computed naming is
+way off however that usually indicates the original naming is particularly
+bad and confusing).
 
-If one your font files is listed here please ask its upstream to fix its
-naming so it respects WWS conventions and does not need further
-reprocessing. (There may be a few false positives in this test as some
-common face qualifiers can be used with a different meaning in family
-names.)
+Because the aim of this test is to help improve overall font naming it will
+not accept some user-unfriendly naming exceptions Microsoft handles in its
+WPF heuristic. Also, the naming parsing used in this test is more aggressive
+than the one Microsoft uses, so it will manage to “fix” some names WPF can
+not, at the expense of a few false positives³.
 
-Packager workaround: patch the file (if it is available in .sfd format),
-or add a fontconfig rule to your package to hide the problem².
-
-¹ http://blogs.msdn.com/text/attachment/2249036.ashx
-  http://blogs.adobe.com/typblography/typotechnica2007/Font%20names.pdf
-  http://blogs.adobe.com/typblography/atypi2006/CSS%20&%20OT%2015.pdf
-² cf the “fontpackages” remapping template; unfortunately this workaround
-  won't fix problems for non-fontconfig applications, or when
-  interoperating with other systems.
-EOF
-        ;;
-    esac
-    ;;
-  "bad-style-naming")
-    case "$2" in
-      "title")
-        echo "Warning: fonts that declare non-WWS compliant styles"
-        ;;
-      "help")
-        cat << EOF
-Font upstream task, with packager workarounds
-
-This WWS-like test checks if font styles use the WWS “Width (Stretch)”,
-“Weight”, “Slope (Slant/Style)” naming convention¹. As noted by Adobe² the
-W3C CSS font family model is less than ideal, but it is a standard and
-applications expect it.
-
-Since *nix applications do not workaround bad font naming with dynamic
-renaming heuristics (unlike Microsoft WPF), achieving consistent naming
-requires fixing it directly in the font files. For this reason we test
-font style naming separately from font family naming, and do not support
-complex weight abbreviations and suffixes³.
-
-To pass this test make sure style names do not include any qualifier not
-defined in the WWS white-paper¹, and that “Width (Stretch)”, “Weight”,
-“Slope (Slant/Style)” are defined only once. Any other face qualifier
-belongs in the font family name.
-
-If one your font files is listed here please ask its upstream to fix its
-naming so it respects WWS conventions and does and does not need further
-reprocessing.
+The average application is not as smart as this script and will not attempt
+to “fix” font naming in any way. Therefore, even if this script computed a
+correct naming, you should not rely on applications doing the same. Please
+ask the font usptream to fix the naming directly in the font file(s).
 
 Packager workaround: patch the file (if it is available in .sfd format),
 or add a fontconfig rule to your package to hide the problem⁴.
@@ -591,8 +521,10 @@ or add a fontconfig rule to your package to hide the problem⁴.
 ¹ http://blogs.msdn.com/text/attachment/2249036.ashx
   http://blogs.adobe.com/typblography/typotechnica2007/Font%20names.pdf
 ² http://blogs.adobe.com/typblography/atypi2006/CSS%20&%20OT%2015.pdf
-³ As defined in the end of the WWS renaming algorithm described in the
-  Microsoft whitepaper.
+³ For example the family name may include some words that look like a
+  “Width”, “Weight”, “Slant” attribute, but that are used in a different
+  sense. This script is not a natural language parser and can not detect
+  those cases reliably
 ⁴ cf the “fontpackages” remapping template; unfortunately this workaround
   won't fix problems for non-fontconfig applications, or when
   interoperating with other systems.
@@ -841,7 +773,7 @@ summary "$2"
 
 # $1 = csv file with test results
 test_score() {
-if [ $(cat "$1" | wc -l) -gt 2 ] ; then
+if [ $(cat "$1" | wc -l) -gt 1 ] ; then
   awk -F '|' '
     BEGIN {
       lh=7
@@ -1191,9 +1123,10 @@ echo ""
 echo "Consolidating data…"
 
 echo "Maintainer|SRPM|RPM|EVR|Arch|RPM size|RPM metadata|foreign data|\
-rpmlint score|filename|family name|face name|format (fontconfig)|\
-format (libmagic)|file size|checksum|partial scripts|partial blocks|fontlint|\
-symlink target|symlink provider|core fonts use" > "$FL"
+rpmlint score|filename|family name|face name|fixed family name|\
+fixed face name|format (fontconfig)|format (libmagic)|file size|checksum|\
+partial scripts|partial blocks|fontlint|symlink target|symlink provider|\
+core fonts use" > "$FL"
 
 if  [ -s "tmp/$FL.2" -a -r "tmp/$FL.2" ] ; then
 
@@ -1210,9 +1143,9 @@ if  [ -s "tmp/$FL.2" -a -r "tmp/$FL.2" ] ; then
         }' | sort -df -t "|" -k 1 -k 2 -k 3 > "tmp/$FL.3"
 
   awk -F "|" '
-    ($14 != "Link") { source[$10] = $3 "-" $4
+    ($16 != "Link") { source[$10] = $3 "-" $4
                       out[$0] = $0 "|" }
-    ($14 == "Link") { link[$0] = $20 }
+    ($16 == "Link") { link[$0] = $22 }
     END {
       for (line in link) {
         out[line] = line "|" source[link[line]]
@@ -1222,7 +1155,7 @@ if  [ -s "tmp/$FL.2" -a -r "tmp/$FL.2" ] ; then
     }' "tmp/$FL.3" > "tmp/$FL.4"
 
   cat "tmp/$FL.4" \
-    | sort -df -t "|" -k 1 -k 2 -k 3 -k 4n -k 11 -k 12 -k 10 \
+    | sort -df -t "|" -k 1 -k 2 -k 3 -k 4n -k 13 -k 14 -k 10 \
     | sed 's=$=|=g' | sed 's=|0|=||=g' | sed 's=|0|=||=g' | sed 's=|\+$==g' \
     >> "$FL"
 
@@ -1242,7 +1175,7 @@ echo ""
 echo -n "— "
 test_help outside-usr-share-fonts title }
 
-awk -F '|' '(NR > 1) && ($14 != "Link") && ($22!="X") && \
+awk -F '|' '(NR > 1) && ($16 != "Link") && ($24!="X") && \
             ($10 !~ /^\/usr\/share\/fonts\//)' "$FL" \
   | sort -df -t "|" > tmp/tmp.csv
 
@@ -1253,7 +1186,7 @@ test_wrapup outside-usr-share-fonts tmp/tmp.csv "$TSUM"
 echo -n "— "
 test_help without-rpm-metadata title
 
-awk -F '|' '(NR > 1) && ($14 != "Link") && ($22!="X") && \
+awk -F '|' '(NR > 1) && ($16 != "Link") && ($24!="X") && \
             ($7 != "M")' "$FL" \
   | sort -df -t "|" > tmp/tmp.csv
 
@@ -1296,8 +1229,8 @@ echo -n "— "
 test_help duplicated-file title
 
 awk -F '|' '
-  (NR > 1) && ($22 != "X") && ($14 != "Link") {
-    files[$16] = files[$16] $0 "#"
+  (NR > 1) && ($24 != "X") && ($16 != "Link") {
+    files[$18] = files[$18] $0 "#"
   }
   END {
     for (checksum in files) {
@@ -1310,15 +1243,15 @@ awk -F '|' '
       }
     }
   }' "$FL" \
-  | sort -g -t "|" -k 16 > tmp/tmp.csv
+  | sort -g -t "|" -k 18 > tmp/tmp.csv
 
 [ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
 awk -F '|' '
   {
     rpm = $3
     if ( $7 == "M" ) { rpm = "[" rpm "]" }
-    sub(".*/", "…/", $10)
-    print rpm "|" $16 "|" $10 "#(" $11 ", " $12 ")"
+    sub(".*/", "", $10)
+    print rpm "|" $18 "|" $10 "#(" $11 ", " $12 ")"
   }' tmp/tmp.csv | enum_rpm
 
 test_wrapup duplicated-file tmp/tmp.csv "$TSUM"
@@ -1354,7 +1287,7 @@ awk -F '|' '
   {
     rpm = $3
     if ( $7 == "M" ) { rpm = "[" rpm "]" }
-    sub(".*/", "…/", $10)
+    sub(".*/", "", $10)
     print rpm "|" $11 ", " $12 "|" $10
   }' tmp/tmp.csv | enum_rpm
 
@@ -1364,8 +1297,8 @@ test_wrapup duplicated-face-ext tmp/tmp.csv "$TSUM"
 echo -n "— "
 test_help fc-query title
 
-awk -F '|' '(NR > 1) && ($14 != "Link") && ($22!="X") && \
-            ($13 == "")' "$FL" > tmp/tmp.csv
+awk -F '|' '(NR > 1) && ($16 != "Link") && ($24!="X") && \
+            ($15 == "")' "$FL" > tmp/tmp.csv
 
 list_rpm tmp/tmp.csv
 test_wrapup fc-query tmp/tmp.csv "$TSUM"
@@ -1374,8 +1307,8 @@ test_wrapup fc-query tmp/tmp.csv "$TSUM"
 echo -n "— "
 test_help libmagic title
 
-awk -F '|' '(NR > 1) && ($14 != "Link") && ($22!="X") && \
-            ($14 !~ /font/) && ($14 !~ /Font/)' "$FL" > tmp/tmp.csv
+awk -F '|' '(NR > 1) && ($16 != "Link") && ($24!="X") && \
+            ($16 !~ /font/) && ($14 !~ /Font/)' "$FL" > tmp/tmp.csv
 
 list_rpm tmp/tmp.csv
 test_wrapup libmagic tmp/tmp.csv "$TSUM"
@@ -1384,25 +1317,24 @@ test_wrapup libmagic tmp/tmp.csv "$TSUM"
 echo -n "— "
 test_help broken-symlink title
 
-awk -F '|' '(NR > 1) && ($14 == "Link") && ($21 == "")' "$FL" > tmp/tmp.csv
+awk -F '|' '(NR > 1) && ($16 == "Link") && ($23 == "")' "$FL" > tmp/tmp.csv
 
 [ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
 awk -F '|' '
   {
     rpm = $3
     if ( $7 == "M" ) { rpm = "[" rpm "]" }
-    sub(".*/", "…/", $10)
-    print $10 " → " $20 "|" rpm
-  }' tmp/tmp.csv \
-  | column -t -s "|" | pretty_indent
+    sub(".*/", "", $10)
+    print rpm "|" $10 " ↛ " $22
+  }' tmp/tmp.csv | enum_rpm
 
 test_wrapup broken-symlink tmp/tmp.csv "$TSUM"
-
 
 echo -n "— "
 test_help rpmlint title
 
-awk -F '|' '(NR > 1) && ($14 != "Link") && ($9 != "0")' "$FL" > tmp/tmp.csv
+awk -F '|' '(NR > 1) && ($16 != "Link") && ($24 != "X") && \
+            ($9 != "")' "$FL" > tmp/tmp.csv
 
 list_rpm tmp/tmp.csv
 test_wrapup rpmlint tmp/tmp.csv "$TSUM"
@@ -1411,8 +1343,8 @@ test_wrapup rpmlint tmp/tmp.csv "$TSUM"
 echo -n "— "
 test_help mixed-with-non-font-data title
 
-awk -F '|' '(NR > 1) && ($14 != "Link") && ($22!="X") && \
-            ($8 != "0")' "$FL" > tmp/tmp.csv
+awk -F '|' '(NR > 1) && ($16 != "Link") && ($24 != "X") && \
+            ($8 != "")' "$FL" > tmp/tmp.csv
 
 list_rpm tmp/tmp.csv
 test_wrapup mixed-with-non-font-data tmp/tmp.csv "$TSUM"
@@ -1421,7 +1353,7 @@ test_wrapup mixed-with-non-font-data tmp/tmp.csv "$TSUM"
 echo -n "— "
 test_help arch-package title
 
-awk -F '|' '(NR > 1) && ($14 != "Link") && ($22!="X") && \
+awk -F '|' '(NR > 1) && ($16 != "Link") && ($24 != "X") && \
             ($5 != "noarch")' "$FL" > tmp/tmp.csv
 
 list_rpm tmp/tmp.csv
@@ -1431,7 +1363,7 @@ test_wrapup arch-package tmp/tmp.csv "$TSUM"
 echo -n "— "
 test_help bad-rpm-naming title
 
-awk -F "|" '(NR > 1) && ($14 != "Link") && ($22!="X") && \
+awk -F "|" '(NR > 1) && ($16 != "Link") && ($24!="X") && \
             $3 !~ /^[0-9abcdefghijklmnopqrstuvwxyz\.-]*-fonts$/' "$FL" \
             > tmp/tmp.csv
 
@@ -1440,135 +1372,26 @@ test_wrapup bad-rpm-naming tmp/tmp.csv "$TSUM"
 
 
 echo -n "— "
-test_help bad-family-naming title
+test_help bad-naming title
 
-awk -F "|" -v wws="$wws_patterns" '
-  BEGIN {
-    na = split(wws, attributes, "~")
-    for (a = 1 ; a <= na ; a++ ) {
-      nb = split(attributes[a], blocks, "#")
-      for (b = 2 ; b <= nb ; b++ ) {
-        nal = split(blocks[b], aliases, "|")
-        for (al = 2 ; al <= nal ; al++ ) {
-          matchlist = matchlist aliases[al] "|"
-        }
-      }
-    }
-    sub("\\|$","",matchlist)
-    nmatch = split(matchlist,matches,"|")
-  }
-  (NR > 1) && ($11 != "") {
-    family = tolower(gensub(/[ \t_\.-]+/," ","G",$11))
-    sub("^ ", "", family)
-    sub(" $", "", family)
-    file[family] = file[family] $0 "#"
-  }
-  END {
-    for (family in file) {
-      i = 1
-      nfamily = family
-      while ((i <= nmatch) && (family == nfamily)) {
-        sub( " " matches[i] "$", "", nfamily)
-        i++
-      }
-      if (family != nfamily) {
-        sub("#$", "", file[family])
-        split(file[family],lines,"#")
-        for (l in lines) { print lines[l] }
-      }
-    }
-  }' "$FL" \
-  | sort -df -t "|" -k 11 -k 3 -k 2 > tmp/tmp.csv
+awk -F '|' '(NR > 1) && ( ($11!=$13) || ($12!=$14))' "$FL" > tmp/tmp.csv
 
 [ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
 awk -F '|' '
   {
     rpm = $3
     if ( $7 == "M" ) { rpm = "[" rpm "]" }
-    sub(".*/", "…/", $10)
-    print rpm "|" $11 "|" $10 " " $12
+    sub(".*/", "", $10)
+    print rpm "|" $11 ", " $12 " → " $13 ", " $14 "|" $10
   }' tmp/tmp.csv | enum_rpm
 
-test_wrapup bad-family-naming tmp/tmp.csv "$TSUM"
-
-
-#FIXME It would also be great to check if the naming is corrected by the
-#      fontconfig files shipped in the package, but this requires fixes in
-#      fc-scan (ability to process non-deployed fontconfig files)
-
-echo -n "— "
-test_help bad-style-naming title
-
-awk -F "|" -v wws="$wws_patterns" '
-  BEGIN {
-    na = split(wws, attributes, "~")
-    for (a = 1 ; a <= na ; a++ ) {
-      nb   = split(attributes[a], blocks, "#")
-      for (b = 2 ; b <= nb ; b++ ) {
-        nal = split(blocks[b], aliases, "|")
-        for (al = 2 ; al <= nal ; al++ ) {
-          nw = split(aliases[al], words, " ")
-          for ( w = nw ; w >= 1 ; w-- ) {
-            matchlist[a] = matchlist[a] words[w] " "
-          }
-          sub(" $","|",matchlist[a])
-        }
-      }
-      sub("\\|$","",matchlist[a])
-    }
-  }
-  (NR > 1) && ($12 != "") {
-    face = tolower(gensub(/[ \t_\.-]+/," ","G",$12))
-    sub("^ ", "", face)
-    sub(" $", "", face)
-    n = split(face, words, " ")
-    rface = ""
-    for ( i = n ; i > 1 ; i-- ) {
-      rface = rface words[i] " "
-    }
-    rface = rface words[1]
-    file[rface] = file[rface] $0 "#"
-  }
-  END {
-    for (face in file) {
-      nface = " " face " "
-      for (a = 1 ; a <= na ; a++ ) {
-        if (nface != "") {
-          nmatch = split(matchlist[a],matches,"|")
-          i = 1
-          nnface = nface
-          while ((i <= nmatch) && (nface == nnface)) {
-            sub(" " matches[i] " ", " ", nnface)
-            i++
-          }
-          nface = nnface
-        }
-      }
-      if (nface != " ") {
-        sub("#$", "", file[face])
-        split(file[face],lines,"#")
-        for (l in lines) { print lines[l] }
-      }
-    }
-  }' "$FL" \
-  | sort -df -t "|" -k 12 -k 11 -k 3 -k 2 > tmp/tmp.csv
-
-[ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
-awk -F '|' '
-  {
-    rpm = $3
-    if ( $7 == "M" ) { rpm = "[" rpm "]" }
-    sub(".*/", "…/", $10)
-    print rpm "|" $12 "|" $10 " (" $11 ")"
-  }' tmp/tmp.csv | enum_rpm
-
-test_wrapup bad-style-naming tmp/tmp.csv "$TSUM"
+test_wrapup bad-naming tmp/tmp.csv "$TSUM"
 
 
 echo -n "— "
 test_help core-fonts title
 
-awk -F '|' '(NR > 1) && ($22=="X")' "$FL" > tmp/tmp.csv
+awk -F '|' '(NR > 1) && ($24=="X")' "$FL" > tmp/tmp.csv
 
 list_rpm tmp/tmp.csv
 test_wrapup core-fonts tmp/tmp.csv "$TSUM"
@@ -1577,7 +1400,7 @@ test_wrapup core-fonts tmp/tmp.csv "$TSUM"
 echo -n "— "
 test_help font-linking title
 
-awk -F '|' '(NR > 1) && ($14=="Link")' "$FL" > tmp/tmp.csv
+awk -F '|' '(NR > 1) && ($16=="Link")' "$FL" > tmp/tmp.csv
 
 list_rpm tmp/tmp.csv
 test_wrapup font-linking tmp/tmp.csv "$TSUM"
@@ -1587,8 +1410,8 @@ echo -n "— "
 test_help duplicated-face-int title
 
 awk -F '|' '
-  (NR > 1) && ($22!="X") && \
-    ($13 != "PCF") && ($13 != "Type 1") && \
+  (NR > 1) && ($24!="X") && \
+    ($15 != "PCF") && ($15 != "Type 1") && \
     ($11 != "") && ($12 != "") {
     sig = $3 "|" $4 "|" $5 "|" $11 "|" $12
     files[sig] = files[sig] $0 "#"
@@ -1609,7 +1432,7 @@ awk -F '|' '
   {
     rpm = $3
     if ( $7 == "M" ) { rpm = "[" rpm "]" }
-    sub(".*/", "…/", $10)
+    sub(".*/", "", $10)
     print rpm "|" $11 ", " $12 "|" $10
   }' tmp/tmp.csv | enum_rpm
 
@@ -1619,7 +1442,7 @@ test_wrapup duplicated-face-int tmp/tmp.csv "$TSUM"
 echo -n "— "
 test_help fontlint title
 
-awk -F '|' '(NR > 1) && ($22!="X") && ($19 > 0)' "$FL" > tmp/tmp.csv
+awk -F '|' '(NR > 1) && ($24!="X") && ($21 > 0)' "$FL" > tmp/tmp.csv
 
 list_rpm tmp/tmp.csv
 test_wrapup fontlint tmp/tmp.csv "$TSUM"
@@ -1628,8 +1451,8 @@ test_wrapup fontlint tmp/tmp.csv "$TSUM"
 echo -n "— "
 test_help no-english-metadata title
 
-awk -F '|' '(NR > 1) && ($22!="X") && \
-            ($13 != "") && (($11 == "") || ($12 == ""))' "$FL" > tmp/tmp.csv
+awk -F '|' '(NR > 1) && ($24!="X") && \
+            ($15 != "") && (($11 == "") || ($12 == ""))' "$FL" > tmp/tmp.csv
 
 [ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
 awk -F '|' '
@@ -1646,7 +1469,7 @@ test_wrapup no-english-metadata tmp/tmp.csv "$TSUM"
 echo -n "— "
 test_help partial-scripts title
 
-awk -F '|' '(NR > 1) && ($22!="X") && ($17 > 0)' "$FL" > tmp/tmp.csv
+awk -F '|' '(NR > 1) && ($24!="X") && ($19 > 0)' "$FL" > tmp/tmp.csv
 
 list_rpm tmp/tmp.csv
 test_wrapup partial-scripts tmp/tmp.csv "$TSUM"
@@ -1655,7 +1478,7 @@ test_wrapup partial-scripts tmp/tmp.csv "$TSUM"
 echo -n "— "
 test_help partial-blocks title
 
-awk -F '|' '(NR > 1) && ($22!="X") && ($18 > 0)' "$FL" > tmp/tmp.csv
+awk -F '|' '(NR > 1) && ($24!="X") && ($20 > 0)' "$FL" > tmp/tmp.csv
 
 list_rpm tmp/tmp.csv
 test_wrapup partial-blocks tmp/tmp.csv "$TSUM"
@@ -1669,7 +1492,7 @@ echo ""
 
 echo "– packages that declare font metadata:"
 
-awk -F '|' '(NR > 1) && ($7 == "M")' "$FL" > tmp/tmp.csv
+awk -F '|' '(NR > 1) && ($7 == "M") && ($24!="X")' "$FL" > tmp/tmp.csv
 stats tmp/tmp.csv
 
 echo "☛ File size is computed as extracted, while rpm is a compressed \
@@ -1680,7 +1503,7 @@ echo ""
 
 echo "– font files in other packages (we should not find any!)"
 
-awk -F '|' '(NR > 1) && ($7 != "M") && ($14 != "Link")' "$FL" > tmp/tmp.csv
+awk -F '|' '(NR > 1) && ($7 != "M") && ($16 != "Link") && ($24!="X")' "$FL" > tmp/tmp.csv
 stats tmp/tmp.csv
 
 [ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \

@@ -14,5 +14,5 @@ if  $(nm -aDu "$3" 2> /dev/null | grep -q  '\<XLoad.*Font') ; then
     type=$(cut -d "|" -f 2 < "$4")
   fi
 
-  echo "$rpminfo|$rpmlint_score|$file||||$type|$size|$checksum||||||X"
+  echo "$rpminfo|$rpmlint_score|$file||||||$type|$size|$checksum||||||X"
 fi
