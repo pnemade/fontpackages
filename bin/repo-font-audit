@@ -1143,9 +1143,10 @@ done
 echo ""
 echo "Analysing files…"
 
-if $(find . -type d | grep -q "$bad_pattern") ; then
-  mkdir -p $(find . -type d | grep "$bad_pattern" | sed "s+$bad_pattern+_+g")
-fi
+find . -type d | grep "$bad_pattern" \
+  | while read dir ; do
+      mkdir -p $(echo "$dir" | sed "s+$bad_pattern+_+g")
+    done
 
 find . -type f | grep "$bad_pattern" \
   | while read file ; do
@@ -1156,8 +1157,12 @@ find . -type f | grep "$bad_pattern" \
 parallelism=$(($(cat /proc/cpuinfo | grep processor | wc -l)+1))
 make -s -r -j $parallelism -f "$DATADIR/repo-font-audit.mk"
 
-datafiles=$(find . -name "*\.rfo\.fonts" -o -name "*\.rfo\.core-fonts" -o -name processed-font-links.txt)
-[ "$datafiles" != "" ] && cat "$datafiles" > "$FL.2"
+find .  -name "*\.rfo\.fonts" \
+     -o -name "*\.rfo\.core-fonts" \
+     -o -name processed-font-links.txt \
+  | while read datafile ; do
+      cat "$datafile" >> "$FL.2"
+    done
 
 mkdir ../data
 for rpmlint in */rpmlint.txt ; do
