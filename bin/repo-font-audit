@@ -1007,7 +1007,7 @@ cat "$FL.1" | while read line ; do
   if $(echo "$rpm_loc" | grep -q -e "^file://") ; then
     ln -s $(echo "$rpm_loc" | sed "s=^file://=/=") .
   else
-    wget --quiet -O "$rpm_loc"
+    wget --quiet "$rpm_loc"
   fi
   echo -ne "\b◑"
   rpm2cpio *.rpm > "$rpm.cpio"
