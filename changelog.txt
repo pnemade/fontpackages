@@ -1,4 +1,4 @@
-Git
+1.32
      - repo-font-audit: replace the two existing WWS tests with a more
        comprehensive one, and externalize it
      - repo-font-audit: add core fonts use test
