@@ -1,4 +1,6 @@
 Git
+     - repo-font-audit: add ancilliary script to compare the results of two
+       different runs
      - repo-font-audit: print run time
      - repo-font-audit: split out test info from the main script
 1.32

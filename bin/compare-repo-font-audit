@@ -1,0 +1,248 @@
+#!/bin/sh
+# Compares the output of two repo-font-audit runs and print test score changes
+
+DATADIR="$(dirname $0)/../private"
+
+usage() {
+cat >&2 << EOF_USAGE
+Usage: $0 <resultset1> <resultset2>
+<resultsetx>: “Extracted data” archive produced by repo-font-audit
+
+Example:
+$0 repo-font-audit-fedora-12-20091121T110127Z.tar.xz repo-font-audit-rawhide-20091121T110127Z.tar.xz
+EOF_USAGE
+exit 1
+}
+
+
+find_package_changes() {
+awk -F '|' '
+  FNR==1 {
+    filenames = filenames FILENAME "|"
+  }
+  (FNR>1) && ($15!="") {
+    format_count[FILENAME"|"$15] = format_count[FILENAME"|"$15] + 1
+    srpm_count[FILENAME"|"$15"|"$2] = srpm_count[FILENAME"|"$15"|"$2] + 1
+    rpm_count[FILENAME"|"$15"|"$3] = rpm_count[FILENAME"|"$15"|"$3] + 1
+    rpm_loc[FILENAME"|"$2"|"$3] = 1
+    format[$15] = 1
+    srpm[$2] = 1
+    rpm[$3] = 1
+  }
+  END {
+    sub("\\|$","",filenames)
+    split(filenames,filenamest,"|")
+    oldfile = filenamest[1]
+    newfile = filenamest[2]
+    nf = asorti(format)
+    ns = asorti(srpm)
+    nr = asorti(rpm)
+    print "A. Font count changes: "
+    for (f = 1 ; f <= nf ; f++ ) {
+      formatc = format_count[newfile"|"format[f]] - format_count[oldfile"|"format[f]]
+      srpmc = 0
+      for ( s = 1 ; s <= ns ; s++ ) {
+        if (srpm_count[newfile"|"format[f]"|"srpm[s]]) {
+          srpmc = srpmc + 1
+        }
+        if (srpm_count[oldfile"|"format[f]"|"srpm[s]]) {
+          srpmc = srpmc - 1
+        }
+      }
+      rpmc = 0
+      for ( r = 1 ; r <= nr ; r++ ) {
+        if (rpm_count[newfile"|"format[f]"|"rpm[r]]) {
+          rpmc = rpmc + 1
+        }
+        if (rpm_count[oldfile"|"format[f]"|"rpm[r]]) {
+          rpmc = rpmc - 1
+        }
+      }
+      if ( formatc > 0 ) { formatc = "+" formatc }
+      if ( srpmc > 0 ) { srpmc = "+" srpmc }
+      if ( rpmc > 0 ) { rpmc = "+" rpmc }
+      if ( formatc "." srpmc "." rpmc != "0.0.0" ) {
+        print "— " format[f] ": " formatc " (" srpmc " srpm, " rpmc " rpm)"
+      }
+    }
+    print ""
+    print "B. Font package changes:"
+    for ( s = 1 ; s <= ns ; s++ ) {
+      for ( r = 1 ; r <= nr ; r++ ) {
+        p = 0
+        if (rpm_loc[oldfile"|"srpm[s]"|"rpm[r]])
+          { p = p - 1 }
+        if (rpm_loc[newfile"|"srpm[s]"|"rpm[r]])
+          { p = p + 1 }
+        line = rpm[r] ".rpm ("srpm[s] ".src.rpm)"
+        if ( p > 0 ) {
+          line = "+ " line
+          for (f = 1 ; f <= nf ; f++ ) {
+            if (rpm_count[newfile"|"format[f]"|"rpm[r]]) {
+            line = line ", " rpm_count[newfile"|"format[f]"|"rpm[r]] " " format[f]
+            }
+          }
+          print line
+        }
+        if ( p < 0 ) {
+          line = "− " line
+          for (f = 1 ; f <= nf ; f++ ) {
+            if (rpm_count[oldfile"|"format[f]"|"rpm[r]]) {
+            line = line ", " rpm_count[oldfile"|"format[f]"|"rpm[r]] " " format[f]
+            }
+          }
+          print line
+        }
+      }
+    }
+  }' "$1" "$2"
+}
+
+compare_tests() {
+
+awk -F '|' '
+  BEGIN {
+    lh = 7
+  }
+  FNR==1 {
+    filenames = filenames FILENAME "|"
+    for (i = lh ; i <= NF ; i++) {
+      testid[ FILENAME "|" i ] = $i
+    }
+  }
+  FNR>1 {
+    for (i = lh ; i <= NF ; i++) {
+      score[ FILENAME "|" $1 "|" $2 "|" $3 "|" i ] += $i
+    }
+  }
+  END {
+    sub("\\|$","",filenames)
+    split(filenames,filenamest,"|")
+    for ( sig in score ) {
+      split(sig,sigt,"|")
+      nsig = sigt[2] "|" sigt[3] "|" sigt[4] "|" testid[ sigt[1] "|" sigt[5] ]
+      if ( sigt[1] == filenamest[1] ) {
+        total_score[nsig] = total_score[nsig] - score[sig]
+      }
+      if ( sigt[1] == filenamest[2] ) {
+        total_score[nsig] = total_score[nsig] + score[sig]
+      }
+    }
+    for ( sig in total_score ) {
+      split(sig,sigt,"|")
+      if ( total_score[sig] != 0 ) {
+        test_diff[ sigt[4] ] = 1
+        pk_diff[ sigt[1] "|" sigt[2] "|" sigt[3] ] = 1
+        total_score_diff[sig] = total_score[sig]
+      }
+    }
+    line = "Maintainer|SRPM|RPM|"
+    nt = asorti(test_diff)
+    for ( t = 1 ; t <= nt ; t++ ) {
+      line = line test_diff[t] "|"
+    }
+    sub("\\|$","",line)
+    print line
+    np = asorti(pk_diff)
+    for ( p = 1 ; p <= np ; p++ ) {
+      line = pk_diff[p] "|"
+      for ( t = 1 ; t <= nt ; t++ ) {
+        line = line total_score_diff[ pk_diff[p] "|" test_diff[t] ] "|"
+      }
+      sub("\\|$","",line)
+      print line
+    }
+  }' "$1" "$2"
+}
+
+
+pretty_print() {
+awk -F '|' '
+  BEGIN {
+    lh = 4
+  }
+  NR==1 {
+    max = NF
+    headline = "P#"
+    for ( i = lh ; i < max ; i++ ) {
+      headline = headline "|t" i+1-lh
+    }
+    print headline
+  }
+  NR>1 {
+    line = NR - 1
+    for ( i = lh ; i < max ; i++ ) {
+      if ( $i ) { line = line "|" $i }
+      else      { line = line "|‧"   }
+      total[i] = total[i] + $i
+    }
+    print line
+  }
+ END {
+  totalline = "Balance"
+  for ( i = lh ; i < max ; i++ ) {
+      totalline = totalline "|" total[i]
+    }
+  print totalline
+  }' "$1" | column -t -s '|'
+
+  echo ""
+
+awk -F '|' '
+  BEGIN {
+    lh = 4
+  }
+  NR==1 {
+    print "P#|Maintainer|RPM|SRPM"
+  }
+  NR>1 {
+    line = NR - 1
+    for ( i = 1 ; i < lh ; i++ ) {
+      if ( $i ) { line = line "|" $i }
+      else      { line = line "| "   }
+    }
+    print line
+  }' "$1" | column -t -s '|'
+
+  echo ""
+
+  awk -F '|' '
+    BEGIN { lh = 4 }
+    NR==1 {
+      for ( i = lh ; i < NF ; i++ ) {
+        print "t" i+1-lh "|" $i
+      }
+    }' "$1" \
+  | while read line ; do
+      testnumber=$(echo $line | cut -d "|" -f 1)
+      testid=$(echo $line | cut -d "|" -f 2)
+      echo -n "$testnumber. "
+      "$DATADIR/test-info" $testid title
+    done
+}
+
+[ "$#" -lt "2" ] && usage
+
+TIMESTAMP=$(date -u +%Y%m%dT%H%M%SZ)
+
+FL="consolidated-data.csv"
+TSUM="test-summary.csv"
+
+TMPDIR=$(mktemp -d --tmpdir=/tmp "$(basename $0)-$TIMESTAMP-XXXXXXXXXX")
+
+tar xf "$1" "*/$TSUM" -O > "$TMPDIR/1-$TSUM"
+tar xf "$1" "*/$FL" -O > "$TMPDIR/1-$FL"
+tar xf "$2" "*/$TSUM" -O > "$TMPDIR/2-$TSUM"
+tar xf "$2" "*/$FL" -O > "$TMPDIR/2-$FL"
+
+find_package_changes "$TMPDIR/1-$FL" "$TMPDIR/2-$FL"
+
+echo ""
+
+echo "C. Test result changes:"
+echo ""
+
+compare_tests "$TMPDIR/1-$TSUM" "$TMPDIR/2-$TSUM" > "$TMPDIR/D-$TSUM"
+[ $(cat "$TMPDIR/D-$TSUM" | wc -l) -gt 1 ] && pretty_print "$TMPDIR/D-$TSUM"
+
+rm -fr "$TMPDIR"
