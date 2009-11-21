@@ -1,4 +1,4 @@
-Git
+1.33
      - repo-font-audit: add ancilliary script to compare the results of two
        different runs
      - repo-font-audit: print run time
