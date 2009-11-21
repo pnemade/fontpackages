@@ -973,7 +973,7 @@ echo "Packing mail data…"
 mkdir spam
 
 for srpm in $(awk -F '|' 'FNR>1 { print $2 }' "$TSUM" | uniq) ; do
-  mkdir "tmp/$srpm" 2>&1
+   [ ! -d "tmp/$srpm" ] && mkdir "tmp/$srpm"
   cp -p report.txt "tmp/$srpm/repo-report.txt"
   for file in "$FL" "$TSUM" ; do
     awk 'FNR==1' "$file" > "tmp/$srpm/$file"
