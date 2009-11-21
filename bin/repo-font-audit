@@ -1251,7 +1251,13 @@ awk -F '|' '
     rpm = $3
     if ( $7 == "M" ) { rpm = "[" rpm "]" }
     sub(".*/", "", $10)
-    print rpm "|" $18 "|" $10 "#(" $11 ", " $12 ")"
+    if ( $11 != "" ) { sig = $11 }
+    if ( $12 != "") {
+      if ( sig != "" ) { sig = sig ", " }
+      sig = sig $12
+    }
+    if ( sig != "" ) { sig = "#(" sig ")" }
+    print rpm "|" $18 "|" $10 sig
   }' tmp/tmp.csv | enum_rpm
 
 test_wrapup duplicated-file tmp/tmp.csv "$TSUM"
@@ -1525,7 +1531,7 @@ echo "Packing mail data…"
 mkdir spam
 
 for srpm in $(awk -F '|' 'FNR>1 { print $2 }' "$TSUM" | uniq) ; do
-  mkdir "tmp/$srpm"
+  mkdir "tmp/$srpm" 2>&1
   cp -p report.txt "tmp/$srpm/repo-report.txt"
   for file in "$FL" "$TSUM" ; do
     awk 'FNR==1' "$file" > "tmp/$srpm/$file"
