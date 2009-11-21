@@ -1,4 +1,5 @@
 Git
+     - repo-font-audit: print run time
      - repo-font-audit: split out test info from the main script
 1.32
      - repo-font-audit: replace the two existing WWS tests with a more
