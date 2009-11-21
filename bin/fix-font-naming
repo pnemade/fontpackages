@@ -15,6 +15,7 @@ EOF_USAGE
 exit 1
 }
 
+fix_naming() {
 awk --re-interval -v family="$1" -v face="$2" '
   BEGIN {
     # regular is a slant but is special-cased in naming
@@ -176,3 +177,8 @@ awk --re-interval -v family="$1" -v face="$2" '
 
     print cnfamily "\t" cnface
   }'
+
+}
+
+[ "$#" -lt "2" ] && usage
+fix_naming "$1" "$2"
