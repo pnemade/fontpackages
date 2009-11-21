@@ -1,3 +1,5 @@
+Git
+     - repo-font-audit: split out test info from the main script
 1.32
      - repo-font-audit: replace the two existing WWS tests with a more
        comprehensive one, and externalize it
