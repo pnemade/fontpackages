@@ -34,7 +34,7 @@ tally() {
 
 awk -F "|" '
   {
-    filesize   += $15
+    filesize   += $17
     filenumber += 1
     rpmsz[$3 "-" $4 "." $5] = $6
     srpms[$2] = 1
