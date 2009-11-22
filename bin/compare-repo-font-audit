@@ -21,78 +21,155 @@ awk -F '|' '
     filenames = filenames FILENAME "|"
   }
   (FNR>1) && ($15!="") {
-    format_count[FILENAME"|"$15] = format_count[FILENAME"|"$15] + 1
-    srpm_count[FILENAME"|"$15"|"$2] = srpm_count[FILENAME"|"$15"|"$2] + 1
-    rpm_count[FILENAME"|"$15"|"$3] = rpm_count[FILENAME"|"$15"|"$3] + 1
-    rpm_loc[FILENAME"|"$2"|"$3] = 1
-    format[$15] = 1
-    srpm[$2] = 1
-    rpm[$3] = 1
+    rpm[$3] = rpm[$3] FILENAME "|" $1 "|" $2 "|" $7 "|" $10 "|" $11 "|" $12 "|" $15 "#"
   }
   END {
     sub("\\|$","",filenames)
     split(filenames,filenamest,"|")
-    oldfile = filenamest[1]
-    newfile = filenamest[2]
-    nf = asorti(format)
-    ns = asorti(srpm)
-    nr = asorti(rpm)
-    print "A. Font count changes: "
-    for (f = 1 ; f <= nf ; f++ ) {
-      formatc = format_count[newfile"|"format[f]] - format_count[oldfile"|"format[f]]
-      srpmc = 0
-      for ( s = 1 ; s <= ns ; s++ ) {
-        if (srpm_count[newfile"|"format[f]"|"srpm[s]]) {
-          srpmc = srpmc + 1
+
+    print "B. Font package changes:"
+    nr = asorti(rpm,rpms)
+    for ( r = 1 ; r <= nr ; r++ ) {
+      sub("#$","",rpm[rpms[r]])
+      na = split(rpm[rpms[r]],rpma,"#")
+      delete rpmv
+      for ( a = 1 ; a <= na ; a++ ) {
+        if (rpmv[rpma[a]]) {
+          delete rpma[a]
         }
-        if (srpm_count[oldfile"|"format[f]"|"srpm[s]]) {
-          srpmc = srpmc - 1
+        else {
+          rpmv[rpma[a]] = 1
         }
       }
-      rpmc = 0
-      for ( r = 1 ; r <= nr ; r++ ) {
-        if (rpm_count[newfile"|"format[f]"|"rpm[r]]) {
-          rpmc = rpmc + 1
+      for (i in minus) {
+        delete minus[i]
+      }
+      for (i in plus) {
+        delete plus[i]
+      }
+      for (i in changed) {
+        delete changed[i]
+      }
+      infom = ""
+      infop = ""
+      na = asort(rpma)
+      for ( a = 1 ; a <= na ; a++ ) {
+        ni = split(rpma[a],rpmi,"|")
+        if ( rpmi[1] == filenamest[1] ) {
+          infom = rpmi[2] "|" rpmi[3] "|" rpmi[4]
+          minus[rpmi[5]] = rpmi[6] "|" rpmi[7] "|" rpmi[8]
         }
-        if (rpm_count[oldfile"|"format[f]"|"rpm[r]]) {
-          rpmc = rpmc - 1
+        if ( rpmi[1] == filenamest[2] ) {
+          infop = rpmi[2] "|" rpmi[3] "|" rpmi[4]
+          plus[rpmi[5]] = rpmi[6] "|" rpmi[7] "|" rpmi[8]
         }
       }
-      if ( formatc > 0 ) { formatc = "+" formatc }
-      if ( srpmc > 0 ) { srpmc = "+" srpmc }
-      if ( rpmc > 0 ) { rpmc = "+" rpmc }
-      if ( formatc "." srpmc "." rpmc != "0.0.0" ) {
-        print "— " format[f] ": " formatc " (" srpmc " srpm, " rpmc " rpm)"
+      for ( file in minus ) {
+        if ( plus[file] == minus[file] ) {
+            delete plus[file]
+            delete minus[file]
+        }
+        else {
+          changed[file] = 1
+          if ( plus[file] == "" ) {
+            delete plus[file]
+          }
+        }
+      }
+      for ( file in plus ) {
+        changed[file] = 1
+      }
+      change = 0
+      if ( length(minus) > 0 ) {
+        change = 1
+      }
+      if ( length(plus) > 0 ) {
+        change = change + 2
+      }
+     if ( change > 0 ) {
+        split(infom, infomt, "|")
+        split(infop, infopt, "|")
+        if ( infomt[3] == "M" ) {
+          infomt[3] = ", M"
+        }
+        if ( infopt[3] == "M" ) {
+          infopt[3] = ", M"
+        }
+        if ( change == 1 ) {
+          print "— " rpms[r] ".rpm (" infomt[2] ".src.rpm , " infomt[1] infomt[3] ")"
+          rpmcount = rpmcount - 1
+        }
+        if ( change == 2 ) {
+          print "+ " rpms[r] ".rpm (" infopt[2] ".src.rpm, " infopt[1] infopt[3] ")"
+          rpmcount = rpmcount + 1
+        }
+        if ( change == 3 ) {
+          print "= " rpms[r] ".rpm (" infomt[2] ".src.rpm, " infomt[1] infomt[3] ")"
+          print "    ⇒ " infopt[2] ".src.rpm, " infopt[1] infopt[3]
+        }
+        nc = asorti(changed)
+        for (i in out) {
+          delete out[i]
+        }
+        for ( c = 1 ; c <= nc ; c++ ) {
+          if ( minus[changed[c]] ) {
+            split(minus[changed[c]], infoc, "|")
+            sig = infoc[1] ", " infoc[2]
+            out[sig] = out [sig] infoc[3] "|−|" changed[c] "#" 
+            formatcount[infoc[3]] = formatcount[infoc[3]] - 1
+            maintcount[infomt[1]] = maintcount[infomt[1]] - 1
+          }
+          if ( plus[changed[c]] ) {
+            split(plus[changed[c]], infoc, "|")
+            sig = infoc[1] ", " infoc[2]
+            out[sig] = out [sig] infoc[3] "|+|" changed[c] "#"
+            formatcount[infoc[3]] = formatcount[infoc[3]] + 1
+            maintcount[infopt[1]] = maintcount[infopt[1]] + 1
+          }
+        }
+        no = asorti(out, outs)
+        for ( o = 1 ; o <= no ; o++ ) {
+          font = outs[o]
+          sub("#$", "", out[font])
+          nf = split(out[font],fs, "#")
+          asort(fs)
+          for ( f = 1 ; f <= nf ; f++ ) {
+            split(fs[f], oi, "|")
+            print "    " oi[2] " " font ", " oi[1] "\t" oi[3]
+          }
+        }
       }
     }
+    nf = asorti (formatcount, fcs)
+    for ( f = 1 ; f <= nf ; f++ ) {
+      if ( formatcount[fcs[f]] > 0 ) {
+        total = total "+" formatcount[fcs[f]] " " fcs[f] ", "
+      }
+      if ( formatcount[fcs[f]] < 0 ) {
+        total = total formatcount[fcs[f]] " " fcs[f] ", "
+      }
+    }
+    sub(", $", ".", total)
+    if ( total == "" ) {
+      total = "—"
+    }
     print ""
-    print "B. Font package changes:"
-    for ( s = 1 ; s <= ns ; s++ ) {
-      for ( r = 1 ; r <= nr ; r++ ) {
-        p = 0
-        if (rpm_loc[oldfile"|"srpm[s]"|"rpm[r]])
-          { p = p - 1 }
-        if (rpm_loc[newfile"|"srpm[s]"|"rpm[r]])
-          { p = p + 1 }
-        line = rpm[r] ".rpm ("srpm[s] ".src.rpm)"
-        if ( p > 0 ) {
-          line = "+ " line
-          for (f = 1 ; f <= nf ; f++ ) {
-            if (rpm_count[newfile"|"format[f]"|"rpm[r]]) {
-            line = line ", " rpm_count[newfile"|"format[f]"|"rpm[r]] " " format[f]
-            }
-          }
-          print line
-        }
-        if ( p < 0 ) {
-          line = "− " line
-          for (f = 1 ; f <= nf ; f++ ) {
-            if (rpm_count[oldfile"|"format[f]"|"rpm[r]]) {
-            line = line ", " rpm_count[oldfile"|"format[f]"|"rpm[r]] " " format[f]
-            }
-          }
-          print line
-        }
+    print "C. Font count changes: " total
+    print ""
+    print "D. Packager activity: "
+    for ( m in maintcount ) {
+      score = maintcount[m]
+      if ( score < 0 ) { score = - score }
+      score = score / 10000
+      rmaintcount[score] = rmaintcount[score] m "|"
+    }
+    nc = asorti(rmaintcount, rmcs)
+    for ( c = nc ; c >= 1 ; c-- ) {
+      sub("\\|$", "", rmaintcount[rmcs[c]])
+      split(rmaintcount[rmcs[c]], maint, "|")
+      nm = asort(maint)
+      for ( m = 1 ; m <= nm ; m++ ) {
+        print maint[m]
       }
     }
   }' "$1" "$2"
@@ -235,14 +312,13 @@ tar xf "$1" "*/$FL" -O > "$TMPDIR/1-$FL"
 tar xf "$2" "*/$TSUM" -O > "$TMPDIR/2-$TSUM"
 tar xf "$2" "*/$FL" -O > "$TMPDIR/2-$FL"
 
-find_package_changes "$TMPDIR/1-$FL" "$TMPDIR/2-$FL"
-
-echo ""
-
-echo "C. Test result changes:"
+echo "A. Test result changes:"
 echo ""
 
 compare_tests "$TMPDIR/1-$TSUM" "$TMPDIR/2-$TSUM" > "$TMPDIR/D-$TSUM"
 [ $(cat "$TMPDIR/D-$TSUM" | wc -l) -gt 1 ] && pretty_print "$TMPDIR/D-$TSUM"
+
+echo ""
+find_package_changes "$TMPDIR/1-$FL" "$TMPDIR/2-$FL"
 
 rm -fr "$TMPDIR"
