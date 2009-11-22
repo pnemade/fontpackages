@@ -1096,16 +1096,16 @@ t=$(($end_time-$start_time))
 th=$(($t/(60*60)))
 tm=$((($t/60)-(th*60)))
 ts=$(($t-(($th*60+$tm)*60)))
-[ $th -gt 0 ] && elapsed_time="$th h"
+[ $th -gt 0 ] && elapsed_time="$th"h
 if [ $tm -gt 0 ] ; then
   [ "$elapsed_time" != "" ] \
-    && elapsed_time="$elapsed_time $tm min" \
-    || elapsed_time="$tm min"
+    && elapsed_time="$elapsed_time $tm"min \
+    || elapsed_time="$tm"min
 fi
 if [ $ts -gt 0 ] ; then
   [ "$elapsed_time" != "" ] \
-    && elapsed_time="$elapsed_time $ts s" \
-    || elapsed_time="$ts s"
+    && elapsed_time="$elapsed_time $ts"s \
+    || elapsed_time="$ts"s
 fi
 
 (
