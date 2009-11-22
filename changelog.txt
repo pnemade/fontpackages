@@ -1,4 +1,4 @@
-Git
+1.34
      - compare-repo-font-audit: make output more comprehensive
 1.33
      - repo-font-audit: add ancilliary script to compare the results of two
