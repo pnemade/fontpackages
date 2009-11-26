@@ -1,4 +1,6 @@
-1.3333333333333333333333333333333335
+Git
+     - repo-font-audit: make local repo uris more reliable
+1.35
      - repo-font-audit: misc. small bug fixes
 1.34
      - compare-repo-font-audit: make output more comprehensive

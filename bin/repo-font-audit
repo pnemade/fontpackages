@@ -12,7 +12,8 @@ Usage: $0 <id> <location>
 <location>: location of the package repository to check
 
 Examples:
-$0 tmp file:///tmp/rpm
+$0 tmp /tmp/rpm
+$0 tmp file://tmp/rpm
 $0 rawhide http://example.com/mirrors/fedora.redhat.com/fedora/linux/development/x86_64/os/
 
 EOF_USAGE
@@ -377,9 +378,9 @@ cat "$FL.1" | while read line ; do
   echo -n "– $rpm ◔"
   mkdir "$rpmd"
   cd "$rpmd"
-  rpm_loc=$(repoquery --repofrompath=$REPOID,$REPOURL --repoid=$REPOID --location "$rpm" 2>/dev/null)
-  if $(echo "$rpm_loc" | grep -q -e "^file://") ; then
-    ln -s $(echo "$rpm_loc" | sed "s=^file://=/=") .
+  rpm_loc=$(repoquery --repofrompath=$REPOID,$REPOURL --repoid=$REPOID --location "$rpm" 2>/dev/null | sed 's=^file:\(\/*\)=/=')
+  if $(echo "$rpm_loc" | grep -q -e '^/') ; then
+    ln -s "$rpm_loc" .
   else
     wget --quiet "$rpm_loc"
   fi
@@ -1012,7 +1013,7 @@ You can self-check your packages at any time by:
 3. indexing this directory with createrepo:
 $ createrepo path-to-test-directory
 4. running repo-font-audit:
-$ repo-font-audit test file://absolute-path-to-test-directory
+$ repo-font-audit test absolute-path-to-test-directory
 
 A summary of the issues I detected is appended here. For your
 convenience a more comprehensive analysis is also attached to this
@@ -1137,7 +1138,7 @@ EOF
 TIMESTAMP=$(date -u +%Y%m%dT%H%M%SZ)
 ID=$1
 REPOID="$1-rfa-$TIMESTAMP"
-REPOURL=$2
+REPOURL=$(echo "$2" | sed 's=^file:\(\/*\)=/=' | sed 's+[^/]$+\1/+' )
 ORIGDIR="$PWD"
 
 FPL="font-packages.csv"
