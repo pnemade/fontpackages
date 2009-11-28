@@ -1,4 +1,4 @@
-Git
+1.37
      - repo-font-audit: do not complain of font naming when there are only
        casing differences (ie mplus)
 1.36
