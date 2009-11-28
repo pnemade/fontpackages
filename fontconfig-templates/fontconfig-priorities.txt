@@ -24,5 +24,6 @@ localization override rules, which are processed in the other order).
 It is almost always safe to use high numbers in the prefix range your font
 belongs to, if you do not want to perturb distribution defaults.
 
+See also /etc/fonts/conf.d/README
 
 © 2007-2009 Nicolas Mailhot <nim at fedoraproject dot org>

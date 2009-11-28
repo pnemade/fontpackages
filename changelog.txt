@@ -1,4 +1,5 @@
 Git
+     - fontconfig-priorities.txt: reference corresponding fontconfig readme
      - filter-fontlint: filter out fontlint success message when fontlint has
        nothing bad to say bout a font file (yes it really happens)
 1.37
