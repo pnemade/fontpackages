@@ -1,4 +1,4 @@
-Git
+1.39
      - repo-font-audit: fix libmagic test for bitmap fonts
 1.38
      - fontconfig-priorities.txt: reference corresponding fontconfig readme
