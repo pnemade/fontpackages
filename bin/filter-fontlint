@@ -10,11 +10,10 @@ awk -F "|" '
   | awk -F "|" '
     $1 ~ /Validation/ {
       l=2
-      while (l<NF) {
+      while (l<=NF) {
         print $l
         l++
       }
-      print $NF
     }
     $1 !~ /Validation/ { print }' \
   | awk -F "|" '
@@ -22,7 +21,7 @@ awk -F "|" '
     NR>1 && $1 !~ /^ / { result = result "\n" $0 }
     NR>1 && $1  ~ /^ / { gsub("^ ", "|",$1)
                          result = result $0 }
-    END { print result }' \
+    END { if (result != "") { print result } }' \
   | grep -v -e "^The following table(s) in the font have been ignored by FontForge" \
             -e "^The glyph named .* is mapped to .*But its name indicates it should be mapped to .*." \
             -e "^A glyph uses at least one, but not all, anchor classes in a subtable" \
