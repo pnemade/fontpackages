@@ -1138,7 +1138,7 @@ EOF
 TIMESTAMP=$(date -u +%Y%m%dT%H%M%SZ)
 ID=$1
 REPOID="$1-rfa-$TIMESTAMP"
-REPOURL=$(echo "$2" | sed 's=^file:\(\/*\)=/=' | sed 's+[^/]$+\1/+' )
+REPOURL=$(echo "$2" | sed 's=^file:\(\/*\)=/=' )
 ORIGDIR="$PWD"
 
 FPL="font-packages.csv"
