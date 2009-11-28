@@ -25,6 +25,11 @@ DATADIR="$(dirname $0)/../private"
 # Filenames with whitespace or & + makefile = !!!
 bad_pattern="[[:space:]&\:]"
 
+# Tools and humans make mistakes; try to fix some obvious ones
+fix_url() {
+sed 's=^file:\(\/*\)=/=' | sed 's=^\(ftp\|http\|https\):\(\/*\)=\1://='
+}
+
 pretty_indent() {
   fold -s -w $(($(tput cols) - 2)) \
   | while read line ; do echo "  $line" ; done
@@ -322,9 +327,12 @@ fi
 collect() {
 start_time=$(date "+%s")
 
+# This is very ugly but the safest syntax to use with any repoquery version
+FREPOURL=$(echo "$REPOURL" | sed 's=^/=file:///=')
+
 echo "Looking for packages:"
 echo "— with font metadata…"
-repoquery --repofrompath=$REPOID,$REPOURL --repoid=$REPOID \
+repoquery --repofrompath=$REPOID,$FREPOURL --repoid=$REPOID \
           --qf "%{sourcerpm}|%{name}|%{epoch}:%{version}-%{release}|%{arch}|%{packagesize}|M" \
           --whatprovides "font(*)" --quiet \
           | sort | uniq \
@@ -332,7 +340,7 @@ repoquery --repofrompath=$REPOID,$REPOURL --repoid=$REPOID \
           > "$FPL"
 
 echo "— that include files with common font extensions…"
-repoquery --repofrompath=$REPOID,$REPOURL --repoid=$REPOID \
+repoquery --repofrompath=$REPOID,$FREPOURL --repoid=$REPOID \
           --qf "%{sourcerpm}|%{name}|%{epoch}:%{version}-%{release}|%{arch}|%{packagesize}|E" \
           -f '*.ttf' -f '*.otf' -f '*.ttc' \
           -f '*.pfb' -f '*.pfa' \
@@ -342,7 +350,7 @@ repoquery --repofrompath=$REPOID,$REPOURL --repoid=$REPOID \
           > "$PWFL"
 
 echo "— that use the core X11 protocol…"
-repoquery --repofrompath=$REPOID,$REPOURL --repoid=$REPOID \
+repoquery --repofrompath=$REPOID,$FREPOURL --repoid=$REPOID \
           --qf "%{sourcerpm}|%{name}|%{epoch}:%{version}-%{release}|%{arch}|%{packagesize}|X" \
           --whatrequires 'libX11.so*' \
           | sort | uniq \
@@ -378,11 +386,13 @@ cat "$FL.1" | while read line ; do
   echo -n "– $rpm ◔"
   mkdir "$rpmd"
   cd "$rpmd"
-  rpm_loc=$(repoquery --repofrompath=$REPOID,$REPOURL --repoid=$REPOID --location "$rpm" 2>/dev/null | sed 's=^file:\(\/*\)=/=')
+  rpm_loc=$(repoquery --repofrompath=$REPOID,$REPOURL --repoid=$REPOID \
+                      --location "$rpm" 2>/dev/null \
+              | fix_url)
   if $(echo "$rpm_loc" | grep -q -e '^/') ; then
     ln -s "$rpm_loc" .
   else
-    wget --quiet "$rpm_loc"
+    curl -O --silent --show-error --retry 3 --connect-timeout 10 --retry-delay 15 --url "$rpm_loc"
   fi
   echo -ne "\b◑"
   rpm2cpio *.rpm > "$rpm.cpio"
@@ -1140,7 +1150,7 @@ EOF
 TIMESTAMP=$(date -u +%Y%m%dT%H%M%SZ)
 ID=$1
 REPOID="$1-rfa-$TIMESTAMP"
-REPOURL=$(echo "$2" | sed 's=^file:\(\/*\)=/=' )
+REPOURL=$(echo "$2" | fix_url)
 ORIGDIR="$PWD"
 
 FPL="font-packages.csv"
