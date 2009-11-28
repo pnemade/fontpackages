@@ -1,3 +1,5 @@
+Git
+     - repo-font-audit: fix libmagic test for bitmap fonts
 1.38
      - fontconfig-priorities.txt: reference corresponding fontconfig readme
      - filter-fontlint: filter out fontlint success message when fontlint has
