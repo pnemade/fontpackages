@@ -1,4 +1,4 @@
-Git
+1.40
      - repo-font-audit: ironclad urls++
 1.39
      - repo-font-audit: fix libmagic test for bitmap fonts
