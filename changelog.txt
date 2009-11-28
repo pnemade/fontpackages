@@ -1,3 +1,6 @@
+Git
+     - repo-font-audit: do not complain of font naming when there are only
+       casing differences (ie mplus)
 1.36
      - repo-font-audit: make local repo uris more reliable
 1.35

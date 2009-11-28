@@ -823,7 +823,9 @@ test_wrapup bad-rpm-naming tmp/tmp.csv "$TSUM"
 echo -n "— "
 "$DATADIR/test-info" bad-naming title
 
-awk -F '|' '(NR > 1) && ( ($11!=$13) || ($12!=$14))' "$FL" > tmp/tmp.csv
+awk -F '|' '(NR > 1) && \
+            ((tolower($11)!=tolower($13)) || (tolower($12)!=tolower($14)))' \
+    "$FL" > tmp/tmp.csv
 
 [ $(cat tmp/tmp.csv | wc -l) -gt 0 ] && \
 awk -F '|' '
