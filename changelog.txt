@@ -1,3 +1,6 @@
+Git
+     - fix-font-naming: try to match Black after ExtraBlack only
+
 1.40
      - repo-font-audit: ironclad urls++
 1.39

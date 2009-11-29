@@ -24,7 +24,7 @@ awk --re-interval -v family="$1" -v face="$2" '
     blocks["regular"] = "Regular"
     blocks["slant"]   = "Italic|Oblique"
     blocks["stretch"] = "UltraCondensed|ExtraCondensed|SemiCondensed|SemiExpanded|ExtraExpanded|UltraExpanded|Condensed|Expanded"
-    blocks["weight"]  = "Thin1|ExtraLight|DemiBold1|ExtraBold1|Bold|Thin2|Light|Medium|Black|ExtraBlack|DemiBold2|ExtraBold2"
+    blocks["weight"]  = "Thin1|ExtraLight|DemiBold1|ExtraBold1|Bold|Thin2|Light|Medium|ExtraBlack|Black|DemiBold2|ExtraBold2"
 
     aliases["Regular"]  = "Book|Normal|Regular|Roman|Upright"
 
@@ -48,8 +48,8 @@ awk --re-interval -v family="$1" -v face="$2" '
     aliases["Thin2"]    = "thin"
     aliases["Light"]    = "Light"
     aliases["Medium"]     = "Medium"
-    aliases["Black"]    = "Black|heavy|nord"
     aliases["ExtraBlack"] = "extra black|ext black|ultra black|UltraBlack|ExtraBlack"
+    aliases["Black"]    = "Black|heavy|nord"
     aliases["DemiBold2"]  = "demi"
     aliases["ExtraBold2"] = "ultra"
 
