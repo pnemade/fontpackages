@@ -18,8 +18,7 @@ conventions are used to attibute the appropriate prefix to new files:
 └────────┴────────────────────────────────────────────────────────────────────┘
 
 Fontconfig uses an inverted priority scheme where files with lower-number
-prefixes take precedence over files with higher-number prefixes (except for
-localization override rules, which are processed in the other order).
+prefixes take precedence over files with higher-number prefixes.
 
 It is almost always safe to use high numbers in the prefix range your font
 belongs to, if you do not want to perturb distribution defaults.
