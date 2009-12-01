@@ -389,7 +389,7 @@ cat "$FL.1" | while read line ; do
   rpm_loc=$(repoquery --repofrompath=$REPOID,$REPOURL --repoid=$REPOID \
                       --location "$rpm" 2>/dev/null \
               | fix_url)
-  if $(echo "$rpm_loc" | grep -q -e '^/') ; then
+  if $(echo "$rpm_loc" | grep -q -e '^[\./~]') ; then
     ln -s "$rpm_loc" .
   else
     curl -O --silent --show-error --retry 3 --connect-timeout 10 --retry-delay 15 --url "$rpm_loc"
