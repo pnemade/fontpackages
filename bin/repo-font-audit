@@ -767,7 +767,7 @@ echo -n "— "
 "$DATADIR/test-info" libmagic title
 
 awk -F '|' '(NR > 1) && ($16 != "Link") && ($24!="X") && \
-            (tolower($16) !~ / font /)' "$FL" > tmp/tmp.csv
+            (tolower(" " $16 " ") !~ / font /)' "$FL" > tmp/tmp.csv
 
 list_rpm tmp/tmp.csv
 test_wrapup libmagic tmp/tmp.csv "$TSUM"
