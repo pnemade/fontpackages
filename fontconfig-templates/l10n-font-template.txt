@@ -32,7 +32,9 @@ Fontconfig generics ([genericname]) currently include:
 A [loc] example would be:
 zh-cn
 
-You may want to add more line for [loc] to allow matching ll as well as ll-cc.
+You may want to add more lines for [loc] to allow matching ll as well as ll-cc,
+however this is unsafe as a “foo” [loc] will match both foo and bar-foo. It is
+better to list all ll-cc locales explicitely.
 
 Processing the resulting file through xmllint with the "format" flag is usually
 a good idea.
