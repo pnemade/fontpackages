@@ -3,7 +3,7 @@
 # …
 
 Source1:        %{name}-<FAMILY>-fontconfig.conf
-BuildRoot:      
+# …
 
 BuildRequires:  fontpackages-devel
 
