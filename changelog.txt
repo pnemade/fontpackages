@@ -1,4 +1,4 @@
-Git
+1.43
      - spec templates: remove BuildRoot directive (ignored since rpm 4.6.0)
      - l10n-font-template.conf: get rid of binding=same (rhbz#578015)
 1.42
