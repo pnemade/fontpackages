@@ -1,3 +1,5 @@
+1.44
+     - spec templates: fix bad change in spectemplate-fonts-multi.spec
 1.43
      - spec templates: remove BuildRoot directive (ignored since rpm 4.6.0)
      - l10n-font-template.conf: get rid of binding=same (rhbz#578015)
