@@ -63,6 +63,7 @@ end
 
 pkg2lang = {}
 lang2pkg = {}
+font2pkg = {}
 
 y = FontPackages::YumRepos.new(yum_opts)
 fp = FontPackages::FontPackages.new("f#{ARGV[0]}")
@@ -92,14 +93,21 @@ fp.fontpackages(:default).sort.each do |pkg|
         # for packages that has multiple config files.
         if fc.include?(generic_names_rule) then
           rules_availability |= true
+          font = nil
           if fc.has_alias?('sans-serif') then
-            sans << [priority, sprintf("%s<i>[%s]</i>", fc.entity_of_alias('sans-serif'), pkg.name)]
+            font = fc.entity_of_alias('sans-serif')
+            sans << [priority, font]
           end
           if fc.has_alias?('serif') then
-            serif << [priority, sprintf("%s<i>[%s]</i>", fc.entity_of_alias('serif'), pkg.name)]
+            font = fc.entity_of_alias('serif')
+            serif << [priority, font]
           end
           if fc.has_alias?('monospace') then
-            monospace << [priority, sprintf("%s<i>[%s]</i>", fc.entity_of_alias('monospace'), pkg.name)]
+            font = fc.entity_of_alias('monospace')
+            monospace << [priority, font]
+          end
+          unless font.nil? then
+            font2pkg[font] = pkg.name
           end
         end
       end
@@ -171,10 +179,36 @@ print "<tbody>"
 lang2pkg.keys.sort.each do |l|
   print "<tr>"
   printf("<td>%s</td>", l)
-  printf("<td>%s</td>", lang2pkg[l][:sans].join(', '))
-  printf("<td>%s</td>", lang2pkg[l][:serif].join(', '))
-  printf("<td>%s</td>", lang2pkg[l][:monospace].join(', '))
-  printf("<td>%s</td>", lang2pkg[l][:other].join(', '))
+  printf("<td>")
+  (0..lang2pkg[l][:sans].length-1).each do |i|
+    printf(", ") if i > 0
+    printf("<b>") if i == 0
+    font = lang2pkg[l][:sans][i]
+    printf("<span title='%s'>%s</span>", font2pkg[font], font)
+    printf("</b>") if i == 0
+  end
+  printf("</td>\n<td>")
+  (0..lang2pkg[l][:serif].length-1).each do |i|
+    printf(", ") if i > 0
+    printf("<b>") if i == 0
+    font = lang2pkg[l][:serif][i]
+    printf("<span title='%s'>%s</span>", font2pkg[font], font)
+    printf("</b>") if i == 0
+  end
+  printf("</td>\n<td>")
+  (0..lang2pkg[l][:monospace].length-1).each do |i|
+    printf(", ") if i > 0
+    printf("<b>") if i == 0
+    font = lang2pkg[l][:monospace][i]
+    printf("<span title='%s'>%s</span>", font2pkg[font], font)
+    printf("</b>") if i == 0
+  end
+  printf("</td>\n<td>")
+  (0..lang2pkg[l][:other].length-1).each do |i|
+    printf(", ") if i > 0
+    printf("<i>%s</i>", lang2pkg[l][:other][i])
+  end
+  printf("</td>\n")
   print "</tr>\n"
 end
 print "</tbody></table>\n"
