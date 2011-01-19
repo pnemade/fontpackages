@@ -37,6 +37,18 @@ rescue LoadError
   require File.join(File.dirname(__FILE__), '..', 'lib', 'fontpackages', 'fontconfig')
 end
 
+class FontInfo
+
+  def initialize(fn, pkg, prio)
+    @fontname = fn
+    @package = pkg
+    @priority = prio
+  end # def initialize
+
+  attr_reader :fontname, :package, :priority
+
+end # class FontInfo
+
 yum_opts = nil
 rawhidever = nil
 ignore = false
@@ -63,11 +75,17 @@ end
 
 pkg2lang = {}
 lang2pkg = {}
-font2pkg = {}
 
 y = FontPackages::YumRepos.new(yum_opts)
 fp = FontPackages::FontPackages.new("f#{ARGV[0]}")
-i = 0
+langpkglist = {}
+Comps::Root.new("f#{ARGV[0]}").groups(:langonly).each do |g|
+  langpkglist[g.lang] = Comps::Group.new(g.name, g.lang, g.is_enabled?, g.is_visible?)
+  langpkglist[g.lang].push(*g.packages(:default).map {|p| p.name =~ /-fonts\Z/ ? p : nil}.compact)
+end
+fontgrppkglist = Comps::Group.new('fonts', nil, true, true)
+fontgrppkglist.push(*Comps::Root.new("f#{ARGV[0]}").groups.map{|g| g.name == 'fonts' || g.name == 'legacy-fonts' ? g : nil}.compact.map {|g| g.packages(:default).map {|p| p.name =~ /-fonts\Z/ ? p : nil}.compact}.flatten)
+
 fp.fontpackages(:default).sort.each do |pkg|
   next if pkg2lang.include?(pkg.name)
   STDERR.printf("%s\n", pkg.name)
@@ -93,21 +111,14 @@ fp.fontpackages(:default).sort.each do |pkg|
         # for packages that has multiple config files.
         if fc.include?(generic_names_rule) then
           rules_availability |= true
-          font = nil
           if fc.has_alias?('sans-serif') then
-            font = fc.entity_of_alias('sans-serif')
-            sans << [priority, font]
+            sans << FontInfo.new(fc.entity_of_alias('sans-serif'), pkg, priority)
           end
           if fc.has_alias?('serif') then
-            font = fc.entity_of_alias('serif')
-            serif << [priority, font]
+            serif << FontInfo.new(fc.entity_of_alias('serif'), pkg, priority)
           end
           if fc.has_alias?('monospace') then
-            font = fc.entity_of_alias('monospace')
-            monospace << [priority, font]
-          end
-          unless font.nil? then
-            font2pkg[font] = pkg.name
+            monospace << FontInfo.new(fc.entity_of_alias('monospace'), pkg, priority)
           end
         end
       end
@@ -118,7 +129,7 @@ fp.fontpackages(:default).sort.each do |pkg|
       end
 
       if sans.empty? && serif.empty? && monospace.empty? then
-        other << pkg.name
+        other << pkg
       end
     end
   rescue RuntimeError => e
@@ -160,7 +171,7 @@ lang2pkg.each do |l,v|
     if k == :other then
       lang2pkg[l][k] = vv.sort
     elsif vv.length > 0 then
-      lang2pkg[l][k] = vv.sort{|x,y| x[0] <=> y[0]}.map{|x| x[1]}
+      lang2pkg[l][k] = vv.sort{|x,y| x.priority <=> y.priority}
     end
   end
 end
@@ -174,43 +185,53 @@ print "table, th, td {\n"
 print "  border: 1px solid black;\n"
 print "}"
 print "</style></head>\n"
-print "<body><table><thead><tr><th>language</th><th>sans</th><th>serif</th><th>monospace</th><th>other</th></tr></thead>\n"
+print "<body>\n"
+print "<div name='legend' style=\"font-size:10px;color:gray;\">Legend: <b>Bold</b>: default font, <i>Italic</i>: installed only when selecting the language support, <span style=\"color:gray;\">gray color</span>: affecting to the language if installed</div>"
+print "<table><thead><tr><th>language</th><th>sans</th><th>serif</th><th>monospace</th><th>other</th></tr></thead>\n"
 print "<tbody>"
+proc = Proc.new do |a,lang|
+  default = false
+  lang_default = false
+  (0..a.length-1).each do |i|
+    printf(", ") if i > 0
+    in_font = fontgrppkglist.has_package?(a[i].package)
+    in_lang = !langpkglist[lang].nil? && langpkglist[lang].has_package?(a[i].package)
+    printf("<b>") if (!default && (in_font || (!in_font && !in_lang))) || (!lang_default && in_lang)
+    printf("<i>") if !in_font && in_lang
+    printf("<span title='%s' style=\"%s\">%s</span>", a[i].package.name, !in_font && !in_lang ? "color: gray;" : "", a[i].fontname)
+    printf("</i>") if !in_font && in_lang
+    printf("</b>") if (!default && (in_font || (!in_font && !in_lang))) || (!lang_default && in_lang)
+    if in_font then
+      default = lang_default = true
+    elsif in_lang then
+      lang_default = true
+    else
+      default = true
+    end
+  end
+end
 lang2pkg.keys.sort.each do |l|
   print "<tr>"
   printf("<td>%s</td>", l)
   printf("<td>")
-  (0..lang2pkg[l][:sans].length-1).each do |i|
-    printf(", ") if i > 0
-    printf("<b>") if i == 0
-    font = lang2pkg[l][:sans][i]
-    printf("<span title='%s'>%s</span>", font2pkg[font], font)
-    printf("</b>") if i == 0
-  end
+  proc.call(lang2pkg[l][:sans], l)
   printf("</td>\n<td>")
-  (0..lang2pkg[l][:serif].length-1).each do |i|
-    printf(", ") if i > 0
-    printf("<b>") if i == 0
-    font = lang2pkg[l][:serif][i]
-    printf("<span title='%s'>%s</span>", font2pkg[font], font)
-    printf("</b>") if i == 0
-  end
+  proc.call(lang2pkg[l][:serif], l)
   printf("</td>\n<td>")
-  (0..lang2pkg[l][:monospace].length-1).each do |i|
-    printf(", ") if i > 0
-    printf("<b>") if i == 0
-    font = lang2pkg[l][:monospace][i]
-    printf("<span title='%s'>%s</span>", font2pkg[font], font)
-    printf("</b>") if i == 0
-  end
+  proc.call(lang2pkg[l][:monospace], l)
   printf("</td>\n<td>")
   (0..lang2pkg[l][:other].length-1).each do |i|
     printf(", ") if i > 0
-    printf("<i>%s</i>", lang2pkg[l][:other][i])
+    package = lang2pkg[l][:other][i]
+    in_font = fontgrppkglist.has_package?(package)
+    in_lang = !langpkglist[l].nil? && langpkglist[l].has_package?(package)
+    printf("<i>") if !in_font && in_lang
+    printf("<span style=\"%s\">%s</span>", !in_font && !in_lang ? "color: gray;" : "", package.name)
+    printf("</i>") if !in_font && in_lang
   end
   printf("</td>\n")
   print "</tr>\n"
 end
 print "</tbody></table>\n"
-print "<div name=\"footer\" style=\"text-align:right;float:right;font-size:10px;color:gray;\">Generated by #{File.basename(__FILE__)} at <a href=\"http://git.fedorahosted.org/git/fontpackages.git\">fontpackages</a></div>\n"
+print "<div name=\"footer\" style=\"text-align:right;float:right;font-size:10px;color:gray;\">Generated by #{File.basename(__FILE__)} in <a href=\"http://git.fedorahosted.org/git/fontpackages.git\">fontpackages</a></div>\n"
 print "</body>\n"

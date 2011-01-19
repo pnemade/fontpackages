@@ -149,7 +149,7 @@ module Comps
           Dir.chdir(tmpdir)
           system("git clone git://git.fedorahosted.org/git/comps.git 1>&2")
           Dir.glob("comps/comps-*.xml.in") do |fn|
-            doc = Hpricot(File.open(fn).read)
+            doc = Hpricot.XML(File.open(fn).read)
             fn =~ /comps-(.*)\.xml\.in/
             @@Releases2comps[$1] = doc
           end
