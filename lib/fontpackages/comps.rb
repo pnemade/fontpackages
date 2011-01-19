@@ -141,20 +141,25 @@ module Comps
   class Root
 
     def initialize(releaseprefix)
-      tmpdir = STemp.mkdtemp(File.join(Dir.tmpdir, "comps.XXXXXXXX"))
-      cwd = Dir.pwd
-      begin
-        Dir.chdir(tmpdir)
-        system("git clone git://git.fedorahosted.org/git/comps.git 1>&2")
-        compsfile = File.join(tmpdir, "comps", sprintf("comps-%s.xml.in", releaseprefix))
-        File.open(compsfile) do |f|
-          x = f.read
-          @doc = Hpricot(x)
+      unless defined? @@Releases2comps then
+	@@Releases2comps = {}
+        tmpdir = STemp.mkdtemp(File.join(Dir.tmpdir, "comps.XXXXXXXX"))
+        cwd = Dir.pwd
+        begin
+          Dir.chdir(tmpdir)
+          system("git clone git://git.fedorahosted.org/git/comps.git 1>&2")
+          Dir.glob("comps/comps-*.xml.in") do |fn|
+            doc = Hpricot(File.open(fn).read)
+            fn =~ /comps-(.*)\.xml\.in/
+            @@Releases2comps[$1] = doc
+          end
+        ensure
+          FileUtils.rm_rf(tmpdir) if !tmpdir.nil? && File.exist?(tmpdir)
+          Dir.chdir(cwd)
         end
-      ensure
-        FileUtils.rm_rf(tmpdir) if !tmpdir.nil? && File.exist?(tmpdir)
-        Dir.chdir(cwd)
       end
+      @doc = @@Releases2comps[releaseprefix]
+      raise ArgumentError, sprintf("Unknown release %s. available comps is %s", releaseprefix, @@Releases2comps.keys.join(',')) if @doc.nil?
     end # def initialize
 
     def inspect
