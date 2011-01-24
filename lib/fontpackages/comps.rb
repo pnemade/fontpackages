@@ -20,7 +20,6 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 require 'rubygems'
-gem 'hpricot'
 require 'hpricot'
 gem 'ruby-stemp'
 require 'stemp'
@@ -143,11 +142,12 @@ module Comps
     def initialize(releaseprefix)
       unless defined? @@Releases2comps then
 	@@Releases2comps = {}
-        tmpdir = STemp.mkdtemp(File.join(Dir.tmpdir, "comps.XXXXXXXX"))
+        tmpdir = STemp.mkdtemp(File.join(Dir.tmpdir, "comps-XXXXXX"))
         cwd = Dir.pwd
         begin
           Dir.chdir(tmpdir)
-          system("git clone git://git.fedorahosted.org/git/comps.git 1>&2")
+          STDERR.printf("Checking out comps repo...\n")
+          system("git clone git://git.fedorahosted.org/git/comps.git > /dev/null 2>&1")
           Dir.glob("comps/comps-*.xml.in") do |fn|
             doc = Hpricot.XML(File.open(fn).read)
             fn =~ /comps-(.*)\.xml\.in/

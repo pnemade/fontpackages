@@ -135,28 +135,44 @@ module FontPackages
     def initialize(*args)
       @ignore_text = true
       @ignore_attributes = false
+      @normalize = false
       super
     end # def initialize
 
-    attr_accessor :ignore_text, :ignore_attributes
+    attr_accessor :ignore_text, :ignore_attributes, :normalize
 
     def -(reference)
-      result = self.dup
-      (reference/"fontconfig/*").each do |xelement|
+      hresult = nil
+      ref = reference
+      if @normalize then
+	hresult = Hash[self.map do |x|
+                         _xml_ = Hpricot.XML(x.to_s)
+                         _xml_ = ::FontPackages::Fontconfig.normalize(_xml_/"*")
+                         [_xml_[0],x]
+                       end]
+        ref = Hpricot.XML(ref.to_s)
+        ret = ::FontPackages::Fontconfig.normalize(ref/"*")
+      else
+        hresult = Hash[self.map{|x| [x,x]}]
+      end
+
+      (ref/"fontconfig/*").each do |xelement|
         next if @ignore_text && xelement.kind_of?(Hpricot::Text)
         next if xelement.kind_of?(Hpricot::Comment)
         x = ::FontPackages::FontconfigElement.new(xelement)
         x.ignore_attributes = @ignore_attributes
         x.ignore_text = @ignore_text
         path = xelement.xpath.sub(/\A\//, '').sub(/\[\d+\]\Z/, '')
-        result.reject! do |item|
+        hresult.reject! do |item, orig|
           y = ::FontPackages::FontconfigElement.new(item)
           y.ignore_attributes = @ignore_attributes
           y.ignore_text = @ignore_text
           x == y
         end
       end
-      result
+      ret = ::FontPackages::FontconfigElements.new(hresult.values)
+      ret.normalize = @normalize
+      ret
     end # def -
 
   end # class FontconfigElements
@@ -206,6 +222,50 @@ module FontPackages
 
   class Fontconfig
 
+    class << self
+
+      def normalize(xml, ignore_text = true)
+        old = @ignore_text
+        @ignore_text = ignore_text
+	ret = _normalize_elements(xml)
+        @ignore_text = old
+
+        ret
+      end # def normalize
+
+      private
+
+      def _normalize_elements(elements, state = false)
+        count = 0
+        retval = elements.reject do |elem|
+          if @ignore_text && elem.kind_of?(Hpricot::Text) then
+            true
+          elsif elem.kind_of?(Hpricot::Comment) then
+            true
+          elsif elem.kind_of?(Hpricot::Elements) then
+            elem.reject!{|e| _normalize_elements(e, state)}
+            elem.empty?
+          elsif elem.kind_of?(Hpricot::Elem) then
+            new_state = false
+            if elem.name == 'test' ||
+                elem.name == 'edit' ||
+                elem.name == 'alias' then
+              new_state = true
+            elsif state &&
+                (elem.name == 'string' ||
+                 elem.name == 'family') then
+              count += 1
+            end
+            children = elem.children
+            elem.children = _normalize_elements(children, new_state)
+            (state && count > 1)
+          end
+        end
+        retval
+      end # def _normalize_elements
+
+    end # class 
+
     def initialize(file)
       File.open(file) do |f|
         x = f.read
@@ -217,8 +277,8 @@ module FontPackages
 
     attr_accessor :ignore_attributes, :ignore_text
 
-    def include?(reference)
-      a = _get_element(reference)
+    def include?(reference, opts = {})
+      a = _get_element(reference, opts)
       !a.empty?
     end # def include?
 
@@ -253,16 +313,22 @@ module FontPackages
 
     private
 
-    def _get_element(reference)
+    def _get_element(reference, opts = {})
       retval = []
-      (reference/"fontconfig/*").each do |xelement|
+      # make a clone of the object since normalize method breaks the object.
+      ref = Hpricot.XML(reference.inner_html)
+      ::FontPackages::Fontconfig.normalize(ref/"fontconfig/*", @ignore_text) if opts.include?(:normalize) && opts[:normalize]
+      (ref/"fontconfig/*").each do |xelement|
         next if @ignore_text && xelement.kind_of?(Hpricot::Text)
         next if xelement.kind_of?(Hpricot::Comment)
         x = ::FontPackages::FontconfigElement.new(xelement)
         x.ignore_attributes = @ignore_attributes
         x.ignore_text = @ignore_text
         path = xelement.xpath.sub(/\A\//, '').sub(/\[\d+\]\Z/, '')
-        yelems = (@doc/path).reject do |yelem|
+[]
+        doc = Hpricot.XML(@doc.inner_html)
+        ::FontPackages::Fontconfig.normalize(doc/"fontconfig/*", @ignore_text) if opts.include?(:normalize) && opts[:normalize]
+        yelems = (doc/path).reject do |yelem|
           y = ::FontPackages::FontconfigElement.new(yelem)
           y.ignore_attributes = @ignore_attributes
           y.ignore_text = @ignore_text

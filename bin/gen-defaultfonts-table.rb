@@ -96,7 +96,7 @@ fp.fontpackages(:default).sort.each do |pkg|
   other = []
   STDERR.printf("  Downloading rpm...\n")
   begin
-    y.extract(pkg.name) do |x, rpm|
+    y.extract(pkg.name) do |rpm|
       rules_availability = false
       config_availability = false
       Dir.glob(File.join('etc', 'fonts', 'conf.d', '*')) do |f|

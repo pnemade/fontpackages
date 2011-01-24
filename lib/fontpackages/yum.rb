@@ -123,19 +123,16 @@ module FontPackages
             raise e
           end
         end
-        yield self, rpm
+        yield self, RPMFile.new(rpm)
       ensure
         FileUtils.rm_rf(tmpdir) unless tmpdir.nil?
         Dir.chdir(cwd)
       end
     end # def download
 
-    def extract(name)
+    def extract(name, &block)
       download(name) do |x, rpm|
-        cmd = sprintf("rpm2cpio %s | cpio -id > /dev/null 2>&1", rpm)
-        STDERR.printf("D: %s\n", cmd) if $DEBUG
-        system(cmd)
-        yield x, rpm
+        rpm.extract(&block)
       end
     end # def extract
 
@@ -163,5 +160,34 @@ module FontPackages
     end # def repoquery
 
   end # class YumRepos
+
+  class RPMFile
+
+    def initialize(filename)
+      @name = filename
+    end # def initialize
+
+    attr_reader :name
+
+    def extract(nop = nil)
+      tmpdir = STemp.mkdtemp(File.join(Dir.tmpdir, sprintf("%sXXXXXXXX", name)))
+      cwd = Dir.pwd
+      begin
+        Dir.chdir(tmpdir) unless tmpdir.nil?
+        rpm = @name
+        if File.dirname(@name) == '.' then
+          rpm = File.join(cwd, @name)
+        end
+        cmd = sprintf("rpm2cpio %s | cpio -id > /dev/null 2>&1", rpm)
+        STDERR.printf("D: %s\n", cmd) if $DEBUG
+        system(cmd)
+        yield self
+      ensure
+        FileUtils.rm_rf(tmpdir) unless tmpdir.nil?
+        Dir.chdir(cwd)
+      end
+    end # def extract
+
+  end # class RPMFile
 
 end # module FontPackages
