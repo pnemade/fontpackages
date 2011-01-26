@@ -188,6 +188,18 @@ module FontPackages
       end
     end # def extract
 
+    def <=>(x)
+      x <=> @name
+    end # def <=>
+
+    def ==(x)
+      x == @name
+    end # def ==
+
+    def to_s
+      @name
+    end # def to_s
+
   end # class RPMFile
 
 end # module FontPackages

@@ -108,6 +108,8 @@ begin
     result[pkg.name] = {}
     STDERR.printf("Checking %s...\n", pkg.name)
     y.extract(pkg.name) do |rpm|
+      result.delete(pkg.name)
+      result[rpm.name] = {}
       Dir.glob(File.join('etc', 'fonts', 'conf.d', '*')) do |f|
         STDERR.printf("  Checking %s...\n", f)
         fn = File.basename(f)
@@ -122,29 +124,29 @@ begin
           xml = Hpricot.XML("<fontconfig>#{val}</fontconfig>")
           a -= xml if fc.include?(xml, :normalize=>true)
           if a.length != size then
-            result[pkg.name][fn] ||= {}
-            result[pkg.name][fn][:authorized] ||= []
-            result[pkg.name][fn][:authorized] << key
+            result[rpm.name][fn] ||= {}
+            result[rpm.name][fn][:authorized] ||= []
+            result[rpm.name][fn][:authorized] << key
             size = a.length
           end
         end
         unless a.empty? then
           STDERR.printf("W: %s: %s may contains the non-authorized rule\n", pkg.name, fn)
-          result[pkg.name][fn] ||= {}
-          result[pkg.name][fn][:nonauthorized] ||= []
-          result[pkg.name][fn][:nonauthorized] << a
+          result[rpm.name][fn] ||= {}
+          result[rpm.name][fn][:nonauthorized] ||= []
+          result[rpm.name][fn][:nonauthorized] << a
         end
       end
-      if result[pkg.name].empty? then
+      if result[rpm.name].empty? then
 	availconf = Dir.glob(File.join('usr', 'share', 'fontconfig', 'conf.avail', '*'))
 	if availconf.empty? then
           STDERR.printf("E: %s: no fontconfig config files provided\n", pkg.name)
         else
           availconf.each do |f|
             fn = File.basename(f)
-            result[pkg.name][fn] ||= {}
-            result[pkg.name][fn][:not_enabled] ||= []
-            result[pkg.name][fn][:not_enabled] << []
+            result[rpm.name][fn] ||= {}
+            result[rpm.name][fn][:not_enabled] ||= []
+            result[rpm.name][fn][:not_enabled] << []
           end
         end
       end
