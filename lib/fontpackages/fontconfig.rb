@@ -325,7 +325,6 @@ module FontPackages
         x.ignore_attributes = @ignore_attributes
         x.ignore_text = @ignore_text
         path = xelement.xpath.sub(/\A\//, '').sub(/\[\d+\]\Z/, '')
-[]
         doc = Hpricot.XML(@doc.inner_html)
         ::FontPackages::Fontconfig.normalize(doc/"fontconfig/*", @ignore_text) if opts.include?(:normalize) && opts[:normalize]
         yelems = (doc/path).reject do |yelem|
