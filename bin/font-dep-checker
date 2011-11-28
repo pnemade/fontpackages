@@ -1,0 +1,35 @@
+#! /bin/bash
+
+function usage() {
+    cat <<EOF
+Usage: $0 <releasever>
+
+This is a tool to check if the font packages has font(:lang=blahblahblah)
+in Provides and report an alert otherwise.
+EOF
+    exit 1
+}
+
+function bad() {
+    echo "[1m[31mNG[0m"
+cat <<EOF>>badpkglist_$relver.log
+$1:
+$2
+
+EOF
+}
+
+[ "$#" -lt 1 ] && usage
+
+echo "Obtaining package information for f$1..."
+pkglist=$(repoquery --releasever=$1 "*-fonts")
+
+relver=$1
+echo > badpkglist_$relver.log
+
+for i in $pkglist; do
+    echo -n "Checking $i..."
+    result=$(repoquery --releasever=$1 --provides $i)
+    echo $result | grep "font(:lang=" > /dev/null 2>&1
+    [ $? -eq 0 ] && echo OK || bad $i "$result"
+done
