@@ -19,6 +19,15 @@ $2
 EOF
 }
 
+function badfc() {
+    echo "[1m[31mNG[0m (fontconfig bug?)"
+cat <<EOF>>badfcpkglist_$relver.log
+$1:
+$2
+
+EOF
+}
+
 [ "$#" -lt 1 ] && usage
 
 echo "Obtaining package information for f$1..."
@@ -26,10 +35,11 @@ pkglist=$(repoquery --releasever=$1 "*-fonts")
 
 relver=$1
 echo > badpkglist_$relver.log
+echo > badfcpkglist_$relver.log
 
 for i in $pkglist; do
     echo -n "Checking $i..."
     result=$(repoquery --releasever=$1 --provides $i)
     echo $result | grep "font(:lang=" > /dev/null 2>&1
-    [ $? -eq 0 ] && echo OK || (repoquery --releasever=$1 -l $i | grep -E "(/usr/share/fonts/|/usr/share/X11/fonts/)" > /dev/null 2>&1 && bad $i "$result" || echo "OK (no fonts)")
+    [ $? -eq 0 ] && echo OK || (echo $result | grep "font(" > /dev/null 2>&1 && badfc $i "$result" || (repoquery --releasever=$1 -l $i | grep -E "(/usr/share/fonts/|/usr/share/X11/fonts/)" > /dev/null 2>&1 && bad $i "$result" || echo "OK (no fonts)"))
 done
