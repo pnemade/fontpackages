@@ -170,7 +170,7 @@ module FontPackages
     attr_reader :name
 
     def extract(nop = nil)
-      tmpdir = STemp.mkdtemp(File.join(Dir.tmpdir, sprintf("%sXXXXXXXX", name)))
+      tmpdir = STemp.mkdtemp(File.join(Dir.tmpdir, sprintf("%sXXXXXXXX", File.basename(name))))
       cwd = Dir.pwd
       begin
         Dir.chdir(tmpdir) unless tmpdir.nil?
