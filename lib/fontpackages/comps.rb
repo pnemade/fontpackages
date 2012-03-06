@@ -1,7 +1,7 @@
 #! /usr/bin/env ruby
 # -*- encoding: utf-8 mode: ruby -*-
 # comps.rb
-# Copyright (C) 2009-2011 Red Hat, Inc.
+# Copyright (C) 2009-2012 Red Hat, Inc.
 #
 # Authors:
 #   Akira TAGOH  <tagoh@redhat.com>
@@ -21,8 +21,17 @@
 
 require 'rubygems'
 require 'hpricot'
-gem 'ruby-stemp'
-require 'stemp'
+begin
+  gem 'ruby-stemp'
+  require 'stemp'
+rescue LoadError
+  require 'rbconfig'
+  if Config::CONFIG['MAJOR'].to_i <= 1 &&
+      Config::CONFIG['MINOR'].to_i <= 8 &&
+      Config::CONFIG['TEENY'].to_i < 7 then
+    raise
+  end
+end
 require 'tmpdir'
 
 
@@ -142,7 +151,7 @@ module Comps
     def initialize(releaseprefix)
       unless defined? @@Releases2comps then
 	@@Releases2comps = {}
-        tmpdir = STemp.mkdtemp(File.join(Dir.tmpdir, "comps-XXXXXX"))
+        tmpdir = mktmpdir(File.join(Dir.tmpdir, "comps-XXXXXX"))
         cwd = Dir.pwd
         begin
           Dir.chdir(tmpdir)
@@ -186,6 +195,18 @@ module Comps
     end # def groups
 
     private
+
+    def mktmpdir(path)
+      retval = nil
+
+      if defined?(STemp) then
+        retval = STemp.mkdtemp(path)
+      else
+        retval = Dir.mktmpdir(path)
+      end
+
+      retval
+    end # def mktmpdir
 
     def _groups
       retval = []

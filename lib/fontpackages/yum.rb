@@ -1,5 +1,5 @@
 # yum.rb
-# Copyright (C) 2010-2011 Red Hat, Inc.
+# Copyright (C) 2010-2012 Red Hat, Inc.
 #
 # Authors:
 #   Akira TAGOH  <tagoh@redhat.com>
@@ -18,9 +18,17 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 require 'rubygems'
-gem 'ruby-stemp'
-require 'stemp'
-
+begin
+  gem 'ruby-stemp'
+  require 'stemp'
+rescue LoadError
+  require 'rbconfig'
+  if Config::CONFIG['MAJOR'].to_i <= 1 &&
+      Config::CONFIG['MINOR'].to_i <= 8 &&
+      Config::CONFIG['TEENY'].to_i < 7 then
+    raise
+  end
+end
 require 'fileutils'
 require 'optparse'
 require 'shellwords'
@@ -31,6 +39,18 @@ rescue LoadError
   require File.join(File.dirname(__FILE__), '..', 'fontpackages', 'compat')
 end
 
+
+def mktmpdir(path)
+  retval = nil
+
+  if defined?(STemp) then
+    retval = STemp.mkdtemp(path)
+  else
+    retval = Dir.mktmpdir(path)
+  end
+
+  retval
+end # def mktmpdir
 
 class OptionParser
 
@@ -106,7 +126,7 @@ module FontPackages
         end
       end
       if block_given? then
-        tmpdir = STemp.mkdtemp(File.join(Dir.tmpdir, sprintf("%sXXXXXXXX", name)))
+        tmpdir = mktmpdir(File.join(Dir.tmpdir, sprintf("%sXXXXXXXX", name)))
       end
       cwd = Dir.pwd
       begin
@@ -170,7 +190,7 @@ module FontPackages
     attr_reader :name
 
     def extract(nop = nil)
-      tmpdir = STemp.mkdtemp(File.join(Dir.tmpdir, sprintf("%sXXXXXXXX", File.basename(name))))
+      tmpdir = mktmpdir(File.join(Dir.tmpdir, sprintf("%sXXXXXXXX", File.basename(name))))
       cwd = Dir.pwd
       begin
         Dir.chdir(tmpdir) unless tmpdir.nil?
