@@ -23,9 +23,9 @@ begin
   require 'stemp'
 rescue LoadError
   require 'rbconfig'
-  if Config::CONFIG['MAJOR'].to_i <= 1 &&
-      Config::CONFIG['MINOR'].to_i <= 8 &&
-      Config::CONFIG['TEENY'].to_i < 7 then
+  if RbConfig::CONFIG['MAJOR'].to_i <= 1 &&
+      RbConfig::CONFIG['MINOR'].to_i <= 8 &&
+      RbConfig::CONFIG['TEENY'].to_i < 7 then
     raise
   end
 end
