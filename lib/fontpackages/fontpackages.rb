@@ -71,7 +71,7 @@ module FontPackages
         end
       end
 
-      retval
+      retval.sort.uniq
     end # def supported_languages
 
     def is_lgc_font?(package)
