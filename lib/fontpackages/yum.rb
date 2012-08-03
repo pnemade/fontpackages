@@ -99,6 +99,10 @@ module FontPackages
       repoquery([yum_options, "-q", @query_format.empty? ? "" : sprintf("--qf=%s", @query_format), name], &block)
     end # def query
 
+    def provides(name, &block)
+      repoquery([yum_options, "-q", "--provides", @query_format.empty? ? "" : sprintf("--qf=%s", @query_format), name], &block)
+    end # def provides
+
     def packagelist(name, &block)
       repoquery([yum_options, "-l", name], &block)
     end # def packagelist
@@ -168,15 +172,20 @@ module FontPackages
       end
     end # def yum_options
 
-    def repoquery(opts)
+    def repoquery(opts, &block)
+      retval = []
       cmd = sprintf("repoquery %s 2> /dev/null", opts.join(' '))
       STDERR.printf("D: %s\n", cmd) if $DEBUG
       IO.popen(cmd) do |f|
         until f.eof? do
           s = f.gets
-          yield s.chomp unless s.nil?
+          unless s.nil? then
+            retval << s.chomp
+            yield s.chomp if block_given?
+          end
         end
       end
+      retval
     end # def repoquery
 
   end # class YumRepos
