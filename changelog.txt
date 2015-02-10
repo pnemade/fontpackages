@@ -1,3 +1,6 @@
+1.45
+     - spec templates: updated to follow current Fedora packaging guidelines
+     - macros.fonts: removed defattr which is not needed explicitly now
 1.44
      - spec templates: fix bad change in spectemplate-fonts-multi.spec
 1.43
