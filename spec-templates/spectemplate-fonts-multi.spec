@@ -12,7 +12,6 @@ Version:        <④>
 Release:        1%{?dist}
 Summary:        
 
-Group:          User Interface/X
 License:        
 URL:            
 Source0:        

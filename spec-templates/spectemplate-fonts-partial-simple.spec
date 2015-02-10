@@ -11,7 +11,6 @@ BuildRequires:  fontpackages-devel
 
 %package <FAMILY>-fonts
 Summary:        
-Group:          User Interface/X
 BuildArch:      noarch
 Requires:       fontpackages-filesystem
 
