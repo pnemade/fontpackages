@@ -87,8 +87,6 @@ fi\
 \
 \
 %files -n %{spn} \
-%defattr(0644,root,root,0755) \
-\
 %dir %{_fontdir} \
 %{lua: \
 for arg=1,rpm.expand("%#") do \
