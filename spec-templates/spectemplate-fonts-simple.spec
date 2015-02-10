@@ -40,10 +40,6 @@ ln -s %{_fontconfig_templatedir}/%{fontconf} \
       %{buildroot}%{_fontconfig_confdir}/%{fontconf}
 
 
-%clean
-rm -fr %{buildroot}
-
-
 %_font_pkg -f %{fontconf} *.ttf
 
 %doc

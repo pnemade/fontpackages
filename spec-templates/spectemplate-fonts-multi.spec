@@ -72,10 +72,6 @@ for fconf in %{fontconf}-<FAMILYX>.conf \
 done
 
 
-%clean
-rm -fr %{buildroot}
-
-
 %files common
 %defattr(0644,root,root,0755)
 %doc 
