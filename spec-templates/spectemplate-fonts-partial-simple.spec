@@ -25,7 +25,6 @@ Requires:       fontpackages-filesystem
 # …
 
 %install
-rm -fr %{buildroot}
 
 # …
 

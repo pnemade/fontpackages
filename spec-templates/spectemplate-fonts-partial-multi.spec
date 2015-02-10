@@ -43,7 +43,6 @@ Requires:       %{name}-fonts-common = %{version}-%{release}
 # …
 
 %install
-rm -fr %{buildroot}
 
 # …
 
